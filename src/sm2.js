@@ -35,11 +35,11 @@ function adaptSM2 (ecdsa) {
         k = this.getBigRandom(n)
         const Q = G.multiply(k)
         r = Q.getX().toBigInteger().add(e).mod(n)
-      } while (r.compareTo(rs.BigInteger.ZERO) <= 0 && r.add(k).compareTo(n) !== 0)
+      } while (r.signum() === 0 || r.add(k).compareTo(n) === 0)
       s = k.subtract(d.multiply(r))
       const dp1Inv = d.add(rs.BigInteger.ONE).modInverse(n)
       s = s.multiply(dp1Inv).mod(n)
-    } while (s.compareTo(rs.BigInteger.ZERO) <= 0)
+    } while (s.signum() === 0)
     return rs.ECDSA.biRSSigToASN1Sig(r, s)
   }
 
@@ -54,7 +54,7 @@ function adaptSM2 (ecdsa) {
             s.compareTo(n) >= 0) { return false }
 
     const t = r.add(s).mod(n)
-    if (t.compareTo(rs.BigInteger.ZERO) <= 0) {
+    if (t.signum() === 0) {
       return false
     }
     const point = G.multiply(s).add(Q.multiply(t))
@@ -71,15 +71,15 @@ class MessageDigest {
   }
 
   updateString (str) {
-    this.md.write(str)
+    this.md.update(str)
   }
 
   updateHex (hex) {
-    this.md.write(sm3.fromHex(hex))
+    this.md.update(sm3.fromHex(hex))
   }
 
   digest () {
-    const hash = this.md.checkSum()
+    const hash = this.md.finalize()
     this.md.reset()
     return sm3.toHex(hash)
   }
@@ -209,7 +209,7 @@ class Signature {
 
   verifyWithMessageHash (sHashHex, hSigVal) {
     if (this.fallbackSig) {
-      return this.fallbackSig.pubKey.verify(hSigVal)
+      return this.fallbackSig.pubKey.verifyWithMessageHash(sHashHex, hSigVal)
     }
     // hex parameter EC public key
     if (this.pubKey === undefined &&
