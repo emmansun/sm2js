@@ -1,0 +1,30 @@
+{
+    "name": "gmsm-sm2js",
+    "version": "0.1.0",
+    "description": "Pure Javascript implementation of the SM2 functions",
+    "keywords": [
+        "sm2",
+        "gmsm"
+    ],
+    "main": "index.js",
+    "scripts": {
+        "test": "standard && node src/sm2_test.js"
+    },
+    "dependencies": {
+        "jsrsasign": "^10.1.10",
+        "gmsm-sm3js": "^0.1.2"
+    },
+    "devDependencies": {
+        "standard": "*",
+        "tape": "*"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/emmansun/sm2js.git"
+    },
+    "author": "Emman Sun",
+    "license": "Apache-2.0",
+    "bugs": {
+        "url": "https://github.com/emmansun/sm2js/issues"
+    }
+}
