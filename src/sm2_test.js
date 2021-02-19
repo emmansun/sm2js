@@ -1,6 +1,6 @@
 const test = require('tape')
 const rs = require('jsrsasign')
-const sm2 = require('./sm2_ec_ext')
+const sm2 = require('./sm2')
 
 const publicKeyPemFromAliKmsForSign = `-----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAERrsLH25zLm2LIo6tivZM9afLprSX
