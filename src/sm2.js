@@ -1,9 +1,15 @@
 const rs = require('jsrsasign')
 const sm3 = require('gmsm-sm3js')
+const util = require('./util')
+
+const SM2_BIT_SIZE = 256
+const SM2_BYTE_SIZE = 32
+const UNCOMPRESSED = 0x04
+const SM2_CURVE_NAME = 'sm2p256v1'
 
 rs.crypto.ECParameterDB.regist(
-  'sm2p256v1', // name / p = 2**256 - 2**224 - 2**96 + 2**64 - 1
-  256,
+  SM2_CURVE_NAME, // name / p = 2**256 - 2**224 - 2**96 + 2**64 - 1
+  SM2_BIT_SIZE,
   'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF', // p
   'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC', // a
   '28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93', // b
@@ -17,12 +23,86 @@ const getNameFunc = rs.ECDSA.getName
 rs.ECDSA.getName = function (s) {
   // {1, 2, 156, 10197, 1, 301}
   if (s === '2a811ccf5501822d') {
-    return 'sm2p256v1'
+    return SM2_CURVE_NAME
   }
   return getNameFunc(s)
 }
 
 function adaptSM2 (ecdsa) {
+  // SM2 encryption
+  // @param {data} to be encrypted, can be string/Uint8array/buffer
+  // @return {string} encrypted hex content
+  ecdsa.encrypt = function (data) {
+    const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
+    return this.encryptRaw(data, Q)
+  }
+
+  ecdsa.encryptHex = function (dataHex) {
+    return this.encrypt(sm3.fromHex(dataHex))
+  }
+
+  ecdsa.encryptRaw = function (data, Q) {
+    data = sm3.normalizeInput(data)
+    const n = this.ecparams.n
+    const G = this.ecparams.G
+    const dataLen = data.length
+    const md = sm3.create()
+    do {
+      const k = this.getBigRandom(n)
+      const point1 = G.multiply(k)
+      const point2 = Q.multiply(k)
+      const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
+      if (!t) {
+        md.reset()
+        continue
+      }
+      for (let i = 0; i < dataLen; i++) {
+        t[i] ^= data[i]
+      }
+      md.update(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
+      md.update(data)
+      md.update(new Uint8Array(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
+      const hash = md.finalize()
+      return sm3.toHex(util.getEncoded(point1, SM2_BYTE_SIZE)) + sm3.toHex(hash) + sm3.toHex(t)
+    } while (true)
+  }
+
+  // SM2 decryption
+  // @param {data} to be decrypted, can be string/Uint8array/buffer
+  // @return {string} decrypted hex content
+  ecdsa.decrypt = function (data) {
+    const d = new rs.BigInteger(this.prvKeyHex, 16)
+    return this.decryptRaw(data, d)
+  }
+
+  ecdsa.decryptHex = function (dataHex) {
+    return this.decrypt(sm3.fromHex(dataHex))
+  }
+
+  ecdsa.decryptRaw = function (data, d) {
+    data = sm3.normalizeInput(data)
+    const dataLen = data.length
+
+    if (data[0] !== UNCOMPRESSED) {
+      throw new Error('Unsupport point marshal mode')
+    }
+    if (dataLen < 97) {
+      throw new Error('Invalid cipher content')
+    }
+    const point1 = rs.ECPointFp.decodeFromHex(this.ecparams.curve, sm3.toHex(data.subarray(0, 65)))
+    const point2 = point1.multiply(d)
+    const c2 = data.subarray(97)
+    const c3 = data.subarray(65, 97)
+    const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
+    if (!t) {
+      throw new Error('Invalid cipher content')
+    }
+    for (let i = 0; i < c3.length; i++) {
+      c2[i] ^= t[i]
+    }
+    return sm3.toHex(c2)
+  }
+
   ecdsa.signHex = function (hashHex, privHex) {
     const d = new rs.BigInteger(privHex, 16)
     const n = this.ecparams.n
@@ -240,6 +320,51 @@ class Signature {
   }
 }
 
+function encrypt (pubkey, data) {
+  if (typeof pubkey === 'string') {
+    pubkey = new rs.ECDSA({
+      curve: SM2_CURVE_NAME,
+      pub: pubkey
+    })
+  }
+  if (!(pubkey instanceof rs.ECDSA) || pubkey.curveName !== SM2_CURVE_NAME) {
+    throw new Error('Invalid ec public key')
+  }
+  adaptSM2(pubkey)
+  return pubkey.encrypt(data)
+}
+
+function encryptHex (pubkey, data) {
+  return encrypt(pubkey, sm3.fromHex(data))
+}
+
+function decrypt (prvKey, data) {
+  if (typeof prvKey === 'string') {
+    prvKey = new rs.ECDSA({
+      curve: SM2_CURVE_NAME,
+      prv: prvKey
+    })
+  }
+  if (!(prvKey instanceof rs.ECDSA) || prvKey.curveName !== SM2_CURVE_NAME) {
+    throw new Error('Invalid ec public key')
+  }
+  adaptSM2(prvKey)
+  return prvKey.decrypt(data)
+}
+
+function decryptHex (prvKey, data) {
+  return decrypt(prvKey, sm3.fromHex(data))
+}
+
+function getCurveName () {
+  return SM2_CURVE_NAME
+}
+
 module.exports = {
-  Signature
+  Signature,
+  getCurveName,
+  encrypt,
+  encryptHex,
+  decrypt,
+  decryptHex
 }
