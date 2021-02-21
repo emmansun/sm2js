@@ -1,28 +1,10 @@
-function integerToByteHex (i) {
-  let h = i.toString(16)
-  if ((h.length % 2) === 1) h = '0' + h
-  return h
-}
+function integerToBytes (i, len) {
+  let bytes = i.toByteArrayUnsigned()
 
-function fromHex (hexStr) {
-  if (typeof hexStr !== 'string' || hexStr.length % 2 === 1) {
-    throw new Error('Invalid hex string')
-  }
-  const bytes = []
-  for (let i = 0; i < hexStr.length; i += 2) {
-    bytes.push(parseInt(hexStr.substr(i, 2), 16))
-  }
-  return bytes
-}
-
-// seems there are no toByteArrayUnsigned() method
-function toBytes (bigInt, byteSize) {
-  let bytes = fromHex(integerToByteHex(bigInt))
-
-  if (byteSize < bytes.length) {
-    bytes = bytes.slice(bytes.length - byteSize)
+  if (len < bytes.length) {
+    bytes = bytes.slice(bytes.length - len)
   } else {
-    while (byteSize > bytes.length) {
+    while (len > bytes.length) {
       bytes.unshift(0)
     }
   }
@@ -35,7 +17,7 @@ function getEncoded (point, byteSize, compressed = false) {
 
   // Get value as a 32-byte Buffer
   // Fixed length based on a patch by bitaddress.org and Casascius
-  let enc = toBytes(x, byteSize)
+  let enc = integerToBytes(x, byteSize)
   if (compressed) {
     if (y.isEven()) {
       // Compressed even pubkey
@@ -50,12 +32,12 @@ function getEncoded (point, byteSize, compressed = false) {
     // Uncompressed pubkey
     // M = 04 || X || Y
     enc.unshift(0x04)
-    enc = enc.concat(toBytes(y, byteSize))
+    enc = enc.concat(integerToBytes(y, byteSize))
   }
   return enc
 }
 
 module.exports = {
-  toBytes: toBytes,
+  integerToBytes: integerToBytes,
   getEncoded
 }

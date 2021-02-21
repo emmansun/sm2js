@@ -86,7 +86,7 @@ function adaptSM2 (ecdsa) {
         const k = this.getBigRandom(n)
         const point1 = G.multiply(k)
         const point2 = Q.multiply(k)
-        const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
+        const t = sm3.kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
         if (!t) {
           md.reset()
           continue
@@ -94,11 +94,11 @@ function adaptSM2 (ecdsa) {
         for (let i = 0; i < dataLen; i++) {
           t[i] ^= data[i]
         }
-        md.update(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
+        md.update(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
         md.update(data)
-        md.update(new Uint8Array(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
+        md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
         const hash = md.finalize()
-        return sm3.toHex(util.getEncoded(point1, SM2_BYTE_SIZE)) + sm3.toHex(hash) + sm3.toHex(t)
+        return sm3.toHex(new Uint8Array(util.getEncoded(point1, SM2_BYTE_SIZE))) + sm3.toHex(hash) + sm3.toHex(t)
       } while (true)
     }
 
@@ -128,7 +128,7 @@ function adaptSM2 (ecdsa) {
       const point2 = point1.multiply(d)
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
-      const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
+      const t = sm3.kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
       if (!t) {
         throw new Error('Invalid cipher content')
       }
@@ -205,8 +205,8 @@ function adaptSM2 (ecdsa) {
         const G = this.ecparams.G
         Q = G.multiply(d)
       }
-      md.update(new Uint8Array(util.toBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
-      md.update(new Uint8Array(util.toBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
+      md.update(new Uint8Array(util.integerToBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
+      md.update(new Uint8Array(util.integerToBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
       return md.finalize()
     }
   }
@@ -217,23 +217,21 @@ class MessageDigest {
     this.md = sm3.create()
   }
 
-  updateString (str) {
-    this.md.update(str)
+  update (data) {
+    this.md.update(data)
   }
 
   updateHex (hex) {
     this.md.update(sm3.fromHex(hex))
   }
 
-  digest () {
+  digest (data) {
+    if (data) {
+      this.update(data)
+    }
     const hash = this.md.finalize()
     this.md.reset()
     return sm3.toHex(hash)
-  }
-
-  digestString (str) {
-    this.updateString(str)
-    return this.digest()
   }
 
   digestHex (hex) {
@@ -296,12 +294,19 @@ class Signature {
     }
   }
 
-  updateString (str) {
+  update (data) {
     if (this.md) {
-      this.md.updateString(str)
+      this.md.update(data)
+    } else if (typeof data === 'string') {
+      this.fallbackSig.updateString(data)
     } else {
-      this.fallbackSig.updateString(str)
+      throw new Error('do not support this data type')
     }
+  }
+
+  // Deprecated
+  updateString (str) {
+    this.update(str)
   }
 
   updateHex (hex) {
@@ -336,7 +341,10 @@ class Signature {
     return this.hSign
   }
 
-  sign () {
+  sign (data) {
+    if (data) {
+      this.update(data)
+    }
     if (this.fallbackSig) {
       return this.fallbackSig.sign()
     }
@@ -344,14 +352,27 @@ class Signature {
     return this.signWithMessageHash(this.sHashHex)
   }
 
+  // Deprecated
   signString (str) {
-    this.updateString(str)
-    return this.sign()
+    return this.sign(str)
   }
 
   signHex (hex) {
     this.updateHex(hex)
     return this.sign()
+  }
+
+  sm2Sign (data, uid) {
+    if (!data) {
+      throw new Error('SM2 sign, please do not call update before sign')
+    }
+    if (this.fallbackSig || !(this.prvKey instanceof rs.ECDSA)) {
+      throw new Error('No valid SM2 private key')
+    }
+    this.update(this.prvKey.calculateZA(uid))
+    this.update(data)
+    this.sHashHex = this.md.digest()
+    return this.signWithMessageHash(this.sHashHex)
   }
 
   verifyWithMessageHash (sHashHex, hSigVal) {
@@ -384,6 +405,19 @@ class Signature {
     }
     this.sHashHex = this.md.digest()
     return this.verifyWithMessageHash(this.sHashHex, hSigVal)
+  }
+
+  sm2Verify (hSigVal, data, uid) {
+    if (!data) {
+      throw new Error('SM2 verify, please do not call update before verify')
+    }
+    if (this.fallbackSig || !(this.pubKey instanceof rs.ECDSA)) {
+      throw new Error('No valid SM2 public key')
+    }
+    this.update(this.pubKey.calculateZA(uid))
+    this.update(data)
+    this.sHashHex = this.md.digest()
+    return this.pubKey.verifyWithMessageHash(this.sHashHex, hSigVal)
   }
 }
 

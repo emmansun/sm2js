@@ -33,11 +33,27 @@ test('SM2 P-256 sign/verify local', function (t) {
   sig1.init({ curve: sm2.getCurveName(), d: keypair.ecprvhex })
   sig1.updateString('emmansun')
   const hSig = sig1.sign()
-  console.log(hSig)
+  console.log('hSig=' + hSig)
   const sig2 = sm2.createSM2Signature()
   sig2.init({ curve: sm2.getCurveName(), xy: keypair.ecpubhex })
   sig2.updateString('emmansun')
   t.true(sig2.verify(hSig))
+  t.end()
+})
+
+test('SM2 P-256 sm2 specific sign/verify', function (t) {
+  const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
+
+  const keypair = ec.generateKeyPairHex()
+
+  const sig1 = sm2.createSM2Signature()
+  sig1.init({ curve: sm2.getCurveName(), d: keypair.ecprvhex })
+
+  const hSig = sig1.sm2Sign('emmansun')
+  console.log('hSig=' + hSig)
+  const sig2 = sm2.createSM2Signature()
+  sig2.init({ curve: sm2.getCurveName(), xy: keypair.ecpubhex })
+  t.true(sig2.sm2Verify(hSig, 'emmansun'))
   t.end()
 })
 
@@ -49,7 +65,7 @@ test('NIST P-256 sign/verify local', function (t) {
   sig1.init({ curve: sm2.getCurveName(), d: keypair.ecprvhex })
   sig1.updateString('emmansun')
   const hSig = sig1.sign()
-  console.log(hSig)
+  console.log('hSig=' + hSig)
   const sig2 = new sm2.Signature({ alg: 'SHA256withECDSA' })
   sig2.init({ curve: sm2.getCurveName(), xy: keypair.ecpubhex })
   sig2.updateString('emmansun')
