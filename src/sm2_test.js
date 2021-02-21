@@ -29,12 +29,12 @@ test('SM2 P-256 sign/verify local', function (t) {
 
   const keypair = ec.generateKeyPairHex()
 
-  const sig1 = new sm2.Signature({ alg: 'SM3withECDSA' })
+  const sig1 = sm2.createSM2Signature()
   sig1.init({ curve: sm2.getCurveName(), d: keypair.ecprvhex })
   sig1.updateString('emmansun')
   const hSig = sig1.sign()
   console.log(hSig)
-  const sig2 = new sm2.Signature({ alg: 'SM3withECDSA' })
+  const sig2 = sm2.createSM2Signature()
   sig2.init({ curve: sm2.getCurveName(), xy: keypair.ecpubhex })
   sig2.updateString('emmansun')
   t.true(sig2.verify(hSig))
@@ -58,7 +58,7 @@ test('NIST P-256 sign/verify local', function (t) {
 })
 
 test('SM2 parse public key pem, verify signature, both from ali KMS', function (t) {
-  const sig = new sm2.Signature({ alg: 'SM3withECDSA' })
+  const sig = sm2.createSM2Signature()
   sig.init(publicKeyPemFromAliKmsForSign)
   t.equal(sig.pubKey.curveName, sm2.getCurveName())
   t.true(sig.verifyWithMessageHash('66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0', signatureHex))

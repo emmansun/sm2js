@@ -3,4 +3,5 @@
 
 **sm2js is a pure Javascript implementation of the GM-Standards SM2.**
 
-sign/verify functions first, use case: sign with KMS, and verify locally.
+- sign/verify functions
+- encrypt/decrypt functions

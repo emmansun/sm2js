@@ -1,11 +1,13 @@
 const rs = require('jsrsasign')
 const sm3 = require('gmsm-sm3js')
 const util = require('./util')
+const { normalizeInput } = require('gmsm-sm3js')
 
 const SM2_BIT_SIZE = 256
 const SM2_BYTE_SIZE = 32
 const UNCOMPRESSED = 0x04
 const SM2_CURVE_NAME = 'sm2p256v1'
+const DEFAULT_UID = '1234567812345678'
 
 rs.crypto.ECParameterDB.regist(
   SM2_CURVE_NAME, // name / p = 2**256 - 2**224 - 2**96 + 2**64 - 1
@@ -28,120 +30,185 @@ rs.ECDSA.getName = function (s) {
   return getNameFunc(s)
 }
 
+const defaultEncryptFunc = rs.Cipher.encrypt
+rs.Cipher.encrypt = function (s, keyObj, algName) {
+  if (keyObj instanceof rs.ECDSA && keyObj.isPublic && keyObj.curveName === SM2_CURVE_NAME) {
+    return encrypt(keyObj, s)
+  }
+  return defaultEncryptFunc(s, keyObj, algName)
+}
+
+const defaultDecryptFunc = rs.Cipher.decrypt
+rs.Cipher.decrypt = function (hex, keyObj, algName) {
+  if (keyObj instanceof rs.ECDSA && keyObj.isPrivate && keyObj.curveName === SM2_CURVE_NAME) {
+    return decryptHex(keyObj, hex)
+  }
+  return defaultDecryptFunc(hex, keyObj, algName)
+}
+
+if (!rs.BigInteger.prototype.toByteArrayUnsigned) {
+  /**
+ * Returns a byte array representation of the big integer.
+ *
+ * This returns the absolute of the contained value in big endian
+ * form. A value of zero results in an empty array.
+ */
+  rs.BigInteger.prototype.toByteArrayUnsigned = function () {
+    const byteArray = this.toByteArray()
+    return byteArray[0] === 0 ? byteArray.slice(1) : byteArray
+  }
+}
+
+const sm2 = Symbol('sm2')
+
 function adaptSM2 (ecdsa) {
   // SM2 encryption
   // @param {data} to be encrypted, can be string/Uint8array/buffer
   // @return {string} encrypted hex content
-  ecdsa.encrypt = function (data) {
-    const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
-    return this.encryptRaw(data, Q)
-  }
-
-  ecdsa.encryptHex = function (dataHex) {
-    return this.encrypt(sm3.fromHex(dataHex))
-  }
-
-  ecdsa.encryptRaw = function (data, Q) {
-    data = sm3.normalizeInput(data)
-    const n = this.ecparams.n
-    const G = this.ecparams.G
-    const dataLen = data.length
-    const md = sm3.create()
-    do {
-      const k = this.getBigRandom(n)
-      const point1 = G.multiply(k)
-      const point2 = Q.multiply(k)
-      const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
-      if (!t) {
-        md.reset()
-        continue
-      }
-      for (let i = 0; i < dataLen; i++) {
-        t[i] ^= data[i]
-      }
-      md.update(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
-      md.update(data)
-      md.update(new Uint8Array(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
-      const hash = md.finalize()
-      return sm3.toHex(util.getEncoded(point1, SM2_BYTE_SIZE)) + sm3.toHex(hash) + sm3.toHex(t)
-    } while (true)
-  }
-
-  // SM2 decryption
-  // @param {data} to be decrypted, can be string/Uint8array/buffer
-  // @return {string} decrypted hex content
-  ecdsa.decrypt = function (data) {
-    const d = new rs.BigInteger(this.prvKeyHex, 16)
-    return this.decryptRaw(data, d)
-  }
-
-  ecdsa.decryptHex = function (dataHex) {
-    return this.decrypt(sm3.fromHex(dataHex))
-  }
-
-  ecdsa.decryptRaw = function (data, d) {
-    data = sm3.normalizeInput(data)
-    const dataLen = data.length
-
-    if (data[0] !== UNCOMPRESSED) {
-      throw new Error('Unsupport point marshal mode')
+  if (!ecdsa[sm2]) {
+    ecdsa[sm2] = true
+    ecdsa.encrypt = function (data) {
+      const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
+      return this.encryptRaw(data, Q)
     }
-    if (dataLen < 97) {
-      throw new Error('Invalid cipher content')
-    }
-    const point1 = rs.ECPointFp.decodeFromHex(this.ecparams.curve, sm3.toHex(data.subarray(0, 65)))
-    const point2 = point1.multiply(d)
-    const c2 = data.subarray(97)
-    const c3 = data.subarray(65, 97)
-    const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
-    if (!t) {
-      throw new Error('Invalid cipher content')
-    }
-    for (let i = 0; i < c3.length; i++) {
-      c2[i] ^= t[i]
-    }
-    return sm3.toHex(c2)
-  }
 
-  ecdsa.signHex = function (hashHex, privHex) {
-    const d = new rs.BigInteger(privHex, 16)
-    const n = this.ecparams.n
-    const G = this.ecparams.G
-    // message hash is truncated with curve key length (FIPS 186-4 6.4)
-    const e = new rs.BigInteger(hashHex.substring(0, this.ecparams.keylen / 4), 16)
-    let r, s, k
-    do {
+    ecdsa.encryptHex = function (dataHex) {
+      return this.encrypt(sm3.fromHex(dataHex))
+    }
+
+    ecdsa.encryptRaw = function (data, Q) {
+      data = sm3.normalizeInput(data)
+      const n = this.ecparams.n
+      const G = this.ecparams.G
+      const dataLen = data.length
+      const md = sm3.create()
       do {
-        k = this.getBigRandom(n)
-        const Q = G.multiply(k)
-        r = Q.getX().toBigInteger().add(e).mod(n)
-      } while (r.signum() === 0 || r.add(k).compareTo(n) === 0)
-      s = k.subtract(d.multiply(r))
-      const dp1Inv = d.add(rs.BigInteger.ONE).modInverse(n)
-      s = s.multiply(dp1Inv).mod(n)
-    } while (s.signum() === 0)
-    return rs.ECDSA.biRSSigToASN1Sig(r, s)
-  }
+        const k = this.getBigRandom(n)
+        const point1 = G.multiply(k)
+        const point2 = Q.multiply(k)
+        const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
+        if (!t) {
+          md.reset()
+          continue
+        }
+        for (let i = 0; i < dataLen; i++) {
+          t[i] ^= data[i]
+        }
+        md.update(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
+        md.update(data)
+        md.update(new Uint8Array(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
+        const hash = md.finalize()
+        return sm3.toHex(util.getEncoded(point1, SM2_BYTE_SIZE)) + sm3.toHex(hash) + sm3.toHex(t)
+      } while (true)
+    }
 
-  ecdsa.verifyRaw = function (e, r, s, Q) {
-    const n = this.ecparams.n
-    const G = this.ecparams.G
+    // SM2 decryption
+    // @param {data} to be decrypted, can be string/Uint8array/buffer
+    // @return {string} decrypted hex content
+    ecdsa.decrypt = function (data) {
+      const d = new rs.BigInteger(this.prvKeyHex, 16)
+      return this.decryptRaw(data, d)
+    }
 
-    if (r.compareTo(rs.BigInteger.ONE) < 0 ||
+    ecdsa.decryptHex = function (dataHex) {
+      return this.decrypt(sm3.fromHex(dataHex))
+    }
+
+    ecdsa.decryptRaw = function (data, d) {
+      data = sm3.normalizeInput(data)
+      const dataLen = data.length
+
+      if (data[0] !== UNCOMPRESSED) {
+        throw new Error('Unsupport point marshal mode')
+      }
+      if (dataLen < 97) {
+        throw new Error('Invalid cipher content')
+      }
+      const point1 = rs.ECPointFp.decodeFromHex(this.ecparams.curve, sm3.toHex(data.subarray(0, 65)))
+      const point2 = point1.multiply(d)
+      const c2 = data.subarray(97)
+      const c3 = data.subarray(65, 97)
+      const t = sm3.kdf(new Uint8Array(util.toBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.toBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
+      if (!t) {
+        throw new Error('Invalid cipher content')
+      }
+      for (let i = 0; i < c3.length; i++) {
+        c2[i] ^= t[i]
+      }
+      return sm3.toHex(c2)
+    }
+
+    ecdsa.signHex = function (hashHex, privHex) {
+      const d = new rs.BigInteger(privHex, 16)
+      const n = this.ecparams.n
+      const G = this.ecparams.G
+      // message hash is truncated with curve key length (FIPS 186-4 6.4)
+      const e = new rs.BigInteger(hashHex.substring(0, this.ecparams.keylen / 4), 16)
+      let r, s, k
+      do {
+        do {
+          k = this.getBigRandom(n)
+          const Q = G.multiply(k)
+          r = Q.getX().toBigInteger().add(e).mod(n)
+        } while (r.signum() === 0 || r.add(k).compareTo(n) === 0)
+        s = k.subtract(d.multiply(r))
+        const dp1Inv = d.add(rs.BigInteger.ONE).modInverse(n)
+        s = s.multiply(dp1Inv).mod(n)
+      } while (s.signum() === 0)
+      return rs.ECDSA.biRSSigToASN1Sig(r, s)
+    }
+
+    ecdsa.verifyRaw = function (e, r, s, Q) {
+      const n = this.ecparams.n
+      const G = this.ecparams.G
+
+      if (r.compareTo(rs.BigInteger.ONE) < 0 ||
             r.compareTo(n) >= 0) { return false }
 
-    if (s.compareTo(rs.BigInteger.ONE) < 0 ||
+      if (s.compareTo(rs.BigInteger.ONE) < 0 ||
             s.compareTo(n) >= 0) { return false }
 
-    const t = r.add(s).mod(n)
-    if (t.signum() === 0) {
-      return false
+      const t = r.add(s).mod(n)
+      if (t.signum() === 0) {
+        return false
+      }
+      const point = G.multiply(s).add(Q.multiply(t))
+
+      const v = point.getX().toBigInteger().add(e).mod(n)
+
+      return v.equals(r)
     }
-    const point = G.multiply(s).add(Q.multiply(t))
 
-    const v = point.getX().toBigInteger().add(e).mod(n)
-
-    return v.equals(r)
+    // calculateZA ZA = H256(ENTLA || IDA || a || b || xG || yG || xA || yA)
+    ecdsa.calculateZA = function (uid) {
+      if (!uid) {
+        uid = DEFAULT_UID
+      }
+      uid = normalizeInput(uid)
+      const uidLen = uid.length
+      if (uidLen >= 0x2000) {
+        throw new Error('the uid is too long')
+      }
+      const entla = uidLen << 3
+      const md = sm3.create()
+      md.update(new Uint8Array([0xff & (entla >>> 8), 0xff & entla]))
+      md.update(uid)
+      md.update(sm3.fromHex('fffffffeffffffffffffffffffffffffffffffff00000000fffffffffffffffc')) // a
+      md.update(sm3.fromHex('28e9fa9e9d9f5e344d5a9e4bcf6509a7f39789f515ab8f92ddbcbd414d940e93')) // b
+      md.update(sm3.fromHex('32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7')) // gx
+      md.update(sm3.fromHex('bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0')) // gy
+      let Q
+      if (this.pubKeyHex) {
+        Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
+      } else {
+        const d = new rs.BigInteger(this.prvKeyHex, 16)
+        const G = this.ecparams.G
+        Q = G.multiply(d)
+      }
+      md.update(new Uint8Array(util.toBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
+      md.update(new Uint8Array(util.toBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
+      return md.finalize()
+    }
   }
 }
 
@@ -360,8 +427,13 @@ function getCurveName () {
   return SM2_CURVE_NAME
 }
 
+function createSM2Signature () {
+  return new Signature({ alg: 'SM3withECDSA' })
+}
+
 module.exports = {
   Signature,
+  createSM2Signature,
   getCurveName,
   encrypt,
   encryptHex,
