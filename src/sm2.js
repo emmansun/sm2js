@@ -1,7 +1,6 @@
 const rs = require('jsrsasign')
 const sm3 = require('gmsm-sm3js')
 const util = require('./util')
-const { normalizeInput } = require('gmsm-sm3js')
 
 const SM2_BIT_SIZE = 256
 const SM2_BYTE_SIZE = 32
@@ -184,7 +183,7 @@ function adaptSM2 (ecdsa) {
       if (!uid) {
         uid = DEFAULT_UID
       }
-      uid = normalizeInput(uid)
+      uid = sm3.normalizeInput(uid)
       const uidLen = uid.length
       if (uidLen >= 0x2000) {
         throw new Error('the uid is too long')
