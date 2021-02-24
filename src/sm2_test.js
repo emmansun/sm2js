@@ -23,6 +23,22 @@ bxIHjKZHc2sztHCXe7cseWGiLq0syg==
 -----END CERTIFICATE REQUEST-----
 `
 
+const cert = `-----BEGIN CERTIFICATE-----
+MIICDTCCAbOgAwIBAgIJAOWoGwJCnVw5MAoGCCqBHM9VAYN1MGcxCzAJBgNVBAYT
+AkNOMRAwDgYDVQQIDAdCZWlqaW5nMRAwDgYDVQQHDAdIYWlEaWFuMRMwEQYDVQQK
+DApHTUNlcnQub3JnMR8wHQYDVQQDDBZHTUNlcnQgR00gUm9vdCBDQSAtIDAxMB4X
+DTIxMDIyNDA3NTgxMloXDTIyMDIyNDA3NTgxMlowIjELMAkGA1UEBhMCQ04xEzAR
+BgNVBAMMCkNhcmdvU21hcnQwWTATBgcqhkjOPQIBBggqgRzPVQGCLQNCAATi93H1
+6+sN4/e6ksqPb/yAaR5/ewgO0PVAtAqMXV3IIZsug/VgFrduCzE71PKHHKKrY3MA
+d1pP8ozvDIGpoYJ8o4GMMIGJMAwGA1UdEwEB/wQCMAAwCwYDVR0PBAQDAgeAMCwG
+CWCGSAGG+EIBDQQfFh1HTUNlcnQub3JnIFNpZ25lZCBDZXJ0aWZpY2F0ZTAdBgNV
+HQ4EFgQUPY0wMfEXn8wNhQTy7bL/dNJcA1UwHwYDVR0jBBgwFoAUf1peOwCEWSoP
+mL6hDm85lUMQTQcwCgYIKoEcz1UBg3UDSAAwRQIgQsJ/kjgsc5cDavOvLvAOn2c9
+u1EHM5QIWn58/xlMu1gCIQDk7Kp4A/c+W2lr93yFHiTPxwtKIz/nwtH4GRAcxeiM
+iA==
+-----END CERTIFICATE-----
+`
+
 test('SM2 P-256 encrypt/decrypt local', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
   const plainText = 'emmansun'
@@ -122,5 +138,12 @@ test('SM2 gen CSR', function (t) {
   console.log(csr)
   const result = rs.asn1.csr.CSRUtil.getParam(csr)
   console.log(JSON.stringify(result))
+  t.end()
+})
+
+test('SM2 read cert', function (t) {
+  const x = new rs.X509()
+  x.readCertPEM(cert)
+  console.log(x.getInfo())
   t.end()
 })
