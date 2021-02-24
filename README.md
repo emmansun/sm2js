@@ -7,4 +7,4 @@
 - sm2Sign/sm2Verify functions (include uid and curve related parameters in signature)
 - encrypt/decrypt functions (Passed integration test with ALI KMS)
 - SM2 certificate signing request generation and parse
-- SM2 certificate parse
+- SM2 certificate parse and verify signature

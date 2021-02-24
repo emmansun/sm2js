@@ -487,6 +487,24 @@ rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
   return pem
 }
 
+function createX509 () {
+  const x = new rs.X509()
+  const oldVerifySigFunc = x.verifySignature
+  x.verifySignature = function (pubKey) {
+    const algName = this.getSignatureAlgorithmField()
+    if (algName !== SM2_SIGN_ALG) {
+      return oldVerifySigFunc.call(x, pubKey)
+    }
+    const hSigVal = this.getSignatureValueHex()
+    const hTbsCert = rs.ASN1HEX.getTLVbyList(this.hex, 0, [0], '30')
+
+    const sig = new Signature({ alg: algName })
+    sig.init(pubKey)
+    return sig.sm2Verify(hSigVal, sm3.fromHex(hTbsCert))
+  }
+  return x
+}
+
 module.exports = {
   Signature,
   createSM2Signature,
@@ -495,5 +513,6 @@ module.exports = {
   encrypt,
   encryptHex,
   decrypt,
-  decryptHex
+  decryptHex,
+  createX509
 }
