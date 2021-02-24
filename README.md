@@ -7,4 +7,7 @@
 - sm2Sign/sm2Verify functions (include uid and curve related parameters in signature)
 - encrypt/decrypt functions (Passed integration test with ALI KMS)
 - SM2 certificate signing request generation and parse
-- SM2 certificate parse and verify signature
+- SM2 certificate parse and verify signature, test CA & certificate are generated from https://www.gmcert.org/
+
+
+For usage, please reference [sm2_test.js](https://github.com/emmansun/sm2js/blob/master/src/sm2_test.js "sm2_test.js")
