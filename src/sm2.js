@@ -6,6 +6,7 @@ const SM2_BIT_SIZE = 256
 const SM2_BYTE_SIZE = 32
 const UNCOMPRESSED = 0x04
 const SM2_CURVE_NAME = 'sm2p256v1'
+const SM2_SIGN_ALG = 'SM3withSM2'
 const DEFAULT_UID = '1234567812345678'
 
 rs.crypto.ECParameterDB.regist(
@@ -28,6 +29,9 @@ rs.ECDSA.getName = function (s) {
   }
   return getNameFunc(s)
 }
+
+rs.asn1.x509.OID.name2oidList[SM2_SIGN_ALG] = '1.2.156.10197.1.501'
+rs.asn1.x509.OID.name2oidList[SM2_CURVE_NAME] = '1.2.156.10197.1.301'
 
 const defaultEncryptFunc = rs.Cipher.encrypt
 rs.Cipher.encrypt = function (s, keyObj, algName) {
@@ -460,14 +464,34 @@ function getCurveName () {
   return SM2_CURVE_NAME
 }
 
+function getSignAlg () {
+  return SM2_SIGN_ALG
+}
+
 function createSM2Signature () {
   return new Signature({ alg: 'SM3withECDSA' })
+}
+
+rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
+  const csr = new rs.asn1.csr.CertificationRequest(param)
+  if (param.sigalg === SM2_SIGN_ALG) {
+    csr.sign = function () {
+      const hCSRI = (new rs.asn1.csr.CertificationRequestInfo(this.params)).getEncodedHex()
+      const sig = new Signature({ alg: this.params.sigalg })
+      sig.init(this.params.sbjprvkey)
+      const sighex = sig.sm2Sign(sm3.fromHex(hCSRI))
+      this.params.sighex = sighex
+    }
+  }
+  const pem = csr.getPEM()
+  return pem
 }
 
 module.exports = {
   Signature,
   createSM2Signature,
   getCurveName,
+  getSignAlg,
   encrypt,
   encryptHex,
   decrypt,

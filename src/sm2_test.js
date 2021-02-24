@@ -11,6 +11,18 @@ MFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAERrsLH25zLm2LIo6tivZM9afLprSX
 
 const signatureHex = '30450220757984e0a063394ee0792b52172dd4273c05e2a66d734ff804a37b9ac639c098022100d9739a8d7a37fc88a1b4210998da489ad5b0dee1c8cb9097e532318aded5d204'
 
+const csrFromAli = `-----BEGIN CERTIFICATE REQUEST-----
+MIIBYjCCAQkCAQAwRzELMAkGA1UEBhMCQ04xEzARBgNVBAMMCkNhcmdvU21hcnQx
+DzANBgNVBAcMBlpodWhhaTESMBAGA1UECAwJR3Vhbmdkb25nMFkwEwYHKoZIzj0C
+AQYIKoEcz1UBgi0DQgAERrsLH25zLm2LIo6tivZM9afLprSX6TCKAmQJArAO7VOt
+ZyW4PQwfaTsUIF7IXEFG4iI8bNuTQwMykUzLu2ypEKBgMC4GCSqGSIb3DQEJDjEh
+MB8wHQYDVR0OBBYEFA3FO8vT+8qZBfGZa2TRhLRbme+9MC4GCSqGSIb3DQEJDjEh
+MB8wHQYDVR0RBBYwFIESZW1tYW4uc3VuQGlxYXguY29tMAoGCCqBHM9VAYN1A0cA
+MEQCIBQx6yv3rzfWCkKqDZQOfNKESQc6NtpQbeVvcxfBrciwAiAj78kkrF5R3g4l
+bxIHjKZHc2sztHCXe7cseWGiLq0syg==
+-----END CERTIFICATE REQUEST-----
+`
+
 test('SM2 P-256 encrypt/decrypt local', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
   const plainText = 'emmansun'
@@ -87,5 +99,28 @@ test('SM2 calculate ZA', function (t) {
   sig.init(publicKeyPemFromAliKmsForSign)
   const za = sm3.toHex(sig.pubKey.calculateZA())
   t.equal(za, '17e7fc071f1418200aeead3c5118a2f18381431d92b808a3bd1ba2d8270c2914')
+  t.end()
+})
+
+test('SM2 parse CSR from ALI KMS', function (t) {
+  const result = rs.asn1.csr.CSRUtil.getParam(csrFromAli)
+  console.log(JSON.stringify(result))
+  t.end()
+})
+
+test('SM2 gen CSR', function (t) {
+  const kp = rs.KEYUTIL.generateKeypair('EC', sm2.getCurveName())
+  const prvKey = kp.prvKeyObj
+  const pubKey = kp.pubKeyObj
+
+  const csr = rs.asn1.csr.CSRUtil.newCSRPEM({
+    subject: { str: '/C=US/O=TEST' },
+    sbjpubkey: pubKey,
+    sigalg: sm2.getSignAlg(),
+    sbjprvkey: prvKey
+  })
+  console.log(csr)
+  const result = rs.asn1.csr.CSRUtil.getParam(csr)
+  console.log(JSON.stringify(result))
   t.end()
 })
