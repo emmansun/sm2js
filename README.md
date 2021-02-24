@@ -3,6 +3,6 @@
 
 **sm2js is a pure Javascript implementation of the GM-Standards SM2.**
 
-- sign/verify functions
+- sign/verify functions (Passed integration test with ALI KMS)
 - sm2Sign/sm2Verify functions (include uid and curve related parameters in signature)
-- encrypt/decrypt functions
+- encrypt/decrypt functions (Passed integration test with ALI KMS)
