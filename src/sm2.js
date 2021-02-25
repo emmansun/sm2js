@@ -8,6 +8,7 @@ const UNCOMPRESSED = 0x04
 const SM2_CURVE_NAME = 'sm2p256v1'
 const SM2_SIGN_ALG = 'SM3withSM2'
 const DEFAULT_UID = '1234567812345678'
+const MAX_RETRY = 100
 
 rs.crypto.ECParameterDB.regist(
   SM2_CURVE_NAME, // name / p = 2**256 - 2**224 - 2**96 + 2**64 - 1
@@ -85,12 +86,19 @@ function adaptSM2 (ecdsa) {
       const G = this.ecparams.G
       const dataLen = data.length
       const md = sm3.create()
+      let count = 0
       do {
+        if (Q.isInfinity()) {
+          throw new Error('SM2: invalid public key')
+        }
         const k = this.getBigRandom(n)
         const point1 = G.multiply(k)
         const point2 = Q.multiply(k)
         const t = sm3.kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
         if (!t) {
+          if (count++ > MAX_RETRY) {
+            throw new Error('SM2: A5, failed to calculate valid t')
+          }
           md.reset()
           continue
         }
