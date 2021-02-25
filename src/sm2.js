@@ -87,10 +87,10 @@ function adaptSM2 (ecdsa) {
       const dataLen = data.length
       const md = sm3.create()
       let count = 0
+      if (Q.isInfinity()) {
+        throw new Error('SM2: invalid public key')
+      }
       do {
-        if (Q.isInfinity()) {
-          throw new Error('SM2: invalid public key')
-        }
         const k = this.getBigRandom(n)
         const point1 = G.multiply(k)
         const point2 = Q.multiply(k)
