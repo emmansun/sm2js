@@ -137,7 +137,7 @@ test('SM2 calculate ZA', function (t) {
 
 test('SM2 parse CSR from ALI KMS', function (t) {
   const result = rs.asn1.csr.CSRUtil.getParam(csrFromAli)
-  console.log(JSON.stringify(result))
+  t.equal(result.sigalg, sm2.getSignAlg())
   t.end()
 })
 
@@ -162,7 +162,6 @@ test('SM2 read cert', function (t) {
   const x = sm2.createX509()
   x.readCertPEM(cert)
   t.equal(x.getSignatureAlgorithmField(), sm2.getSignAlg())
-  console.log(x.getInfo())
   t.true(x.verifySignature(rs.KEYUTIL.getKey(CA_CERT)))
   t.end()
 })
