@@ -1,4 +1,6 @@
-const C = require('jsrsasign').CryptoJS
+const rs = require('jsrsasign')
+const KJUR = rs.KJUR
+const C = rs.CryptoJS
 const CLib = C.lib
 const WordArray = CLib.WordArray
 const Hasher = CLib.Hasher
@@ -167,5 +169,8 @@ C.SM3 = Hasher._createHelper(SM3)
      *     var hmac = CryptoJS.HmacSM3(message, key);
      */
 C.HmacSM3 = Hasher._createHmacHelper(SM3)
+
+KJUR.crypto.Util.DEFAULTPROVIDER.sm3 = 'cryptojs'
+KJUR.crypto.Util.CRYPTOJSMESSAGEDIGESTNAME.sm3 = SM3
 
 module.exports = SM3
