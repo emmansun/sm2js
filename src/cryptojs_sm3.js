@@ -15,7 +15,6 @@ const SM3_T = [0x79cc4519, 0x7a879d8a]
 
 // Reusable object
 const W = []
-const W1 = []
 
 /**
      * SM3 hash algorithm.
@@ -27,14 +26,6 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     return (x << s) | (x >>> (n - s))
   },
 
-  _t: function (j) {
-    j = j & 0xff
-    if (j < 16) {
-      return SM3_T[0]
-    }
-    return SM3_T[1]
-  },
-
   _p0: function (x) {
     return x ^ this.rotateLeft32(x, 9) ^ this.rotateLeft32(x, 17)
   },
@@ -43,17 +34,11 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     return x ^ this.rotateLeft32(x, 15) ^ this.rotateLeft32(x, 23)
   },
 
-  _ff: function (j, x, y, z) {
-    if (j < 16) {
-      return x ^ y ^ z
-    }
+  _ff: function (x, y, z) {
     return (x & y) | (x & z) | (y & z)
   },
 
-  _gg: function (j, x, y, z) {
-    if (j < 16) {
-      return x ^ y ^ z
-    }
+  _gg: function (x, y, z) {
     return (x & y) | (~x & z)
   },
 
@@ -76,20 +61,45 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     let h = H[7]
 
     // Computation
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 4; i++) {
       W[i] = M[offset + i] | 0
     }
-    for (let i = 16; i < 68; i++) {
-      W[i] = this._p1(W[i - 16] ^ W[i - 9] ^ this.rotateLeft32(W[i - 3], 15)) ^ this.rotateLeft32(W[i - 13], 7) ^ W[i - 6]
-    }
-    for (let i = 0; i < 64; i++) {
-      W1[i] = W[i] ^ W[i + 4]
-    }
-    for (let i = 0; i < 64; i++) {
-      const ss1 = this.rotateLeft32(this.rotateLeft32(a, 12) + e + this.rotateLeft32(this._t(i), i), 7)
+    for (let i = 0; i < 12; i++) {
+      W[i + 4] = M[offset + i + 4] | 0
+      const ss1 = this.rotateLeft32(this.rotateLeft32(a, 12) + e + this.rotateLeft32(SM3_T[0], i), 7)
       const ss2 = ss1 ^ this.rotateLeft32(a, 12)
-      const tt1 = this._ff(i, a, b, c) + d + ss2 + W1[i]
-      const tt2 = this._gg(i, e, f, g) + h + ss1 + W[i]
+      const tt1 = (a ^ b ^ c) + d + ss2 + (W[i] ^ W[i + 4])
+      const tt2 = (e ^ f ^ g) + h + ss1 + W[i]
+      d = c
+      c = this.rotateLeft32(b, 9)
+      b = a
+      a = tt1 | 0
+      h = g
+      g = this.rotateLeft32(f, 19)
+      f = e
+      e = this._p0(tt2)
+    }
+    for (let i = 12; i < 16; i++) {
+      W[i + 4] = this._p1(W[i - 12] ^ W[i - 5] ^ this.rotateLeft32(W[i + 1], 15)) ^ this.rotateLeft32(W[i - 9], 7) ^ W[i - 2]
+      const ss1 = this.rotateLeft32(this.rotateLeft32(a, 12) + e + this.rotateLeft32(SM3_T[0], i), 7)
+      const ss2 = ss1 ^ this.rotateLeft32(a, 12)
+      const tt1 = (a ^ b ^ c) + d + ss2 + (W[i] ^ W[i + 4])
+      const tt2 = (e ^ f ^ g) + h + ss1 + W[i]
+      d = c
+      c = this.rotateLeft32(b, 9)
+      b = a
+      a = tt1 | 0
+      h = g
+      g = this.rotateLeft32(f, 19)
+      f = e
+      e = this._p0(tt2)
+    }
+    for (let i = 16; i < 64; i++) {
+      W[i + 4] = this._p1(W[i - 12] ^ W[i - 5] ^ this.rotateLeft32(W[i + 1], 15)) ^ this.rotateLeft32(W[i - 9], 7) ^ W[i - 2]
+      const ss1 = this.rotateLeft32(this.rotateLeft32(a, 12) + e + this.rotateLeft32(SM3_T[1], i), 7)
+      const ss2 = ss1 ^ this.rotateLeft32(a, 12)
+      const tt1 = this._ff(a, b, c) + d + ss2 + (W[i] ^ W[i + 4])
+      const tt2 = this._gg(e, f, g) + h + ss1 + W[i]
       d = c
       c = this.rotateLeft32(b, 9)
       b = a
