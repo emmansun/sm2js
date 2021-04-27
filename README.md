@@ -1,5 +1,7 @@
 # sm2js
-[![Build Status](https://travis-ci.org/emmansun/sm2js.svg?branch=main)](https://travis-ci.org/emmansun/sm2js)[![npm version](https://badge.fury.io/js/gmsm-sm2js.svg)](https://badge.fury.io/js/gmsm-sm2js)
+[![Build Status](https://travis-ci.org/emmansun/sm2js.svg?branch=main)](https://travis-ci.org/emmansun/sm2js)
+[![npm version](https://badge.fury.io/js/gmsm-sm2js.svg)](https://badge.fury.io/js/gmsm-sm2js)
+[![NPM Downloads][npm-downloads-image]][npm-url]
 
 **sm2js is a pure Javascript implementation of the GM-Standards SM2.**
 
@@ -11,3 +13,6 @@
 
 
 For usage, please reference [sm2_test.js](https://github.com/emmansun/sm2js/blob/master/src/sm2_test.js "sm2_test.js")
+
+[npm-downloads-image]: https://badgen.net/npm/dm/gmsm-sm2js
+[npm-url]: https://npmjs.org/package/gmsm-sm2js
