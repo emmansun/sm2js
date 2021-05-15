@@ -1,3 +1,4 @@
+require('./cryptojs_sm3')
 const rs = require('jsrsasign')
 const sm3 = require('gmsm-sm3js')
 const util = require('./util')
@@ -5,21 +6,28 @@ const util = require('./util')
 const SM2_BIT_SIZE = 256
 const SM2_BYTE_SIZE = 32
 const UNCOMPRESSED = 0x04
-const SM2_CURVE_NAME = 'sm2p256v1'
 const SM2_SIGN_ALG = 'SM3withSM2'
 const DEFAULT_UID = '1234567812345678'
 const MAX_RETRY = 100
 
+const SM2_CURVE_NAME = 'sm2p256v1'
+const SM2_CURVE_PARAM_P = 'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF'
+const SM2_CURVE_PARAM_A = 'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC'
+const SM2_CURVE_PARAM_B = '28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93'
+const SM2_CURVE_PARAM_N = 'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123'
+const SM2_CURVE_PARAM_GX = '32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7'
+const SM2_CURVE_PARAM_GY = 'BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0'
+
 rs.crypto.ECParameterDB.regist(
   SM2_CURVE_NAME, // name / p = 2**256 - 2**224 - 2**96 + 2**64 - 1
   SM2_BIT_SIZE,
-  'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFF', // p
-  'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC', // a
-  '28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E93', // b
-  'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123', // n
+  SM2_CURVE_PARAM_P, // p
+  SM2_CURVE_PARAM_A, // a
+  SM2_CURVE_PARAM_B, // b
+  SM2_CURVE_PARAM_N, // n
   '1', // h
-  '32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7', // gx
-  'BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0', // gy
+  SM2_CURVE_PARAM_GX, // gx
+  SM2_CURVE_PARAM_GY, // gy
   []) // alias
 
 const getNameFunc = rs.ECDSA.getName
@@ -204,10 +212,10 @@ function adaptSM2 (ecdsa) {
       const md = sm3.create()
       md.update(new Uint8Array([0xff & (entla >>> 8), 0xff & entla]))
       md.update(uid)
-      md.update(sm3.fromHex('fffffffeffffffffffffffffffffffffffffffff00000000fffffffffffffffc')) // a
-      md.update(sm3.fromHex('28e9fa9e9d9f5e344d5a9e4bcf6509a7f39789f515ab8f92ddbcbd414d940e93')) // b
-      md.update(sm3.fromHex('32c4ae2c1f1981195f9904466a39c9948fe30bbff2660be1715a4589334c74c7')) // gx
-      md.update(sm3.fromHex('bc3736a2f4f6779c59bdcee36b692153d0a9877cc62a474002df32e52139f0a0')) // gy
+      md.update(sm3.fromHex(SM2_CURVE_PARAM_A)) // a
+      md.update(sm3.fromHex(SM2_CURVE_PARAM_B)) // b
+      md.update(sm3.fromHex(SM2_CURVE_PARAM_GX)) // gx
+      md.update(sm3.fromHex(SM2_CURVE_PARAM_GY)) // gy
       let Q
       if (this.pubKeyHex) {
         Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
@@ -477,7 +485,7 @@ function getSignAlg () {
 }
 
 function createSM2Signature () {
-  return new Signature({ alg: 'SM3withECDSA' })
+  return new Signature({ alg: SM2_SIGN_ALG })
 }
 
 rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
