@@ -3,6 +3,18 @@ const rs = require('jsrsasign')
 const sm3 = require('gmsm-sm3js')
 const util = require('./util')
 
+let crypto
+let useNodeSM3 = false
+try {
+  crypto = require('crypto')
+  useNodeSM3 = crypto.getHashes().indexOf('sm3') >= 0
+} catch (err) {
+  console.log('crypto support is disabled!')
+}
+
+const SM3_SIZE = 32
+const SM3_SIZE_BIT_SIZE = 5
+
 const SM2_BIT_SIZE = 256
 const SM2_BYTE_SIZE = 32
 const UNCOMPRESSED = 0x04
@@ -93,7 +105,7 @@ function adaptSM2 (ecdsa) {
       const n = this.ecparams.n
       const G = this.ecparams.G
       const dataLen = data.length
-      const md = sm3.create()
+      let md = new MessageDigest()
       let count = 0
       if (Q.isInfinity()) {
         throw new Error('SM2: invalid public key')
@@ -102,12 +114,12 @@ function adaptSM2 (ecdsa) {
         const k = this.getBigRandom(n)
         const point1 = G.multiply(k)
         const point2 = Q.multiply(k)
-        const t = sm3.kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
+        const t = kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
         if (!t) {
           if (count++ > MAX_RETRY) {
             throw new Error('SM2: A5, failed to calculate valid t')
           }
-          md.reset()
+          md = new MessageDigest()
           continue
         }
         for (let i = 0; i < dataLen; i++) {
@@ -116,7 +128,7 @@ function adaptSM2 (ecdsa) {
         md.update(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
         md.update(data)
         md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
-        const hash = md.finalize()
+        const hash = md.digestRaw()
         return sm3.toHex(new Uint8Array(util.getEncoded(point1, SM2_BYTE_SIZE))) + sm3.toHex(hash) + sm3.toHex(t)
       } while (true)
     }
@@ -209,7 +221,7 @@ function adaptSM2 (ecdsa) {
         throw new Error('the uid is too long')
       }
       const entla = uidLen << 3
-      const md = sm3.create()
+      const md = new MessageDigest()
       md.update(new Uint8Array([0xff & (entla >>> 8), 0xff & entla]))
       md.update(uid)
       md.update(sm3.fromHex(SM2_CURVE_PARAM_A)) // a
@@ -226,14 +238,46 @@ function adaptSM2 (ecdsa) {
       }
       md.update(new Uint8Array(util.integerToBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
       md.update(new Uint8Array(util.integerToBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
-      return md.finalize()
+      return md.digestRaw()
+    }
+  }
+}
+
+function kdf (data, len) {
+  data = sm3.normalizeInput(data)
+  const limit = (len + SM3_SIZE - 1) >>> SM3_SIZE_BIT_SIZE
+  const countBytes = new Uint8Array(4)
+  let ct = 1
+  const k = new Uint8Array(len + SM3_SIZE - 1)
+  let md = new MessageDigest()
+  for (let i = 0; i < limit; i++) {
+    countBytes[0] = (ct >>> 24) & 0xff
+    countBytes[1] = (ct >>> 16) & 0xff
+    countBytes[2] = (ct >>> 8) & 0xff
+    countBytes[3] = ct & 0xff
+    md.update(data)
+    md.update(countBytes)
+    const hash = md.digestRaw()
+    for (let j = 0; j < SM3_SIZE; j++) {
+      k[i * SM3_SIZE + j] = hash[j]
+    }
+    ct++
+    md = new MessageDigest()
+  }
+  for (let i = 0; i < len; i++) {
+    if (k[i] !== 0) {
+      return k.subarray(0, len)
     }
   }
 }
 
 class MessageDigest {
   constructor () {
-    this.md = sm3.create()
+    if (useNodeSM3) {
+      this.md = crypto.createHash('sm3')
+    } else {
+      this.md = sm3.create()
+    }
   }
 
   update (data) {
@@ -244,13 +288,21 @@ class MessageDigest {
     this.md.update(sm3.fromHex(hex))
   }
 
+  digestRaw () {
+    return useNodeSM3 ? this.md.digest() : this.md.finalize()
+  }
+
   digest (data) {
     if (data) {
       this.update(data)
     }
-    const hash = this.md.finalize()
-    this.md.reset()
-    return sm3.toHex(hash)
+    if (!useNodeSM3) {
+      const hash = this.md.finalize()
+      this.md.reset()
+      return sm3.toHex(hash)
+    } else {
+      return this.md.digest('hex')
+    }
   }
 
   digestHex (hex) {
