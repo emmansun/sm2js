@@ -64,6 +64,7 @@ test('SM2 P-256 encrypt/decrypt local', function (t) {
 
   const ciphertext = sm2.encrypt(keypair.ecpubhex, plainText)
   console.log('ciphertext=' + ciphertext)
+  console.log('asn.1 ciphertext=' + sm2.plainCiphertext2ASN1(ciphertext))
   const result = sm2.decryptHex(keypair.ecprvhex, ciphertext)
 
   t.equal(result, expected)

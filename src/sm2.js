@@ -30,6 +30,9 @@ const SM2_CURVE_PARAM_N = 'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF
 const SM2_CURVE_PARAM_GX = '32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7'
 const SM2_CURVE_PARAM_GY = 'BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0'
 
+const CIPHERTEXT_ENCODING_PLAIN = 0
+const CIPHERTEXT_ENCODING_ASN1 = 1
+
 rs.crypto.ECParameterDB.regist(
   SM2_CURVE_NAME, // name / p = 2**256 - 2**224 - 2**96 + 2**64 - 1
   SM2_BIT_SIZE,
@@ -129,7 +132,7 @@ function adaptSM2 (ecdsa) {
         md.update(data)
         md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
         const hash = md.digestRaw()
-        return sm3.toHex(new Uint8Array(util.getEncoded(point1, SM2_BYTE_SIZE))) + sm3.toHex(hash) + sm3.toHex(t)
+        return sm3.toHex(new Uint8Array(point1.getEncoded(false))) + sm3.toHex(hash) + sm3.toHex(t)
       } while (true)
     }
 
@@ -155,7 +158,7 @@ function adaptSM2 (ecdsa) {
       if (dataLen < 97) {
         throw new Error('Invalid cipher content')
       }
-      const point1 = rs.ECPointFp.decodeFromHex(this.ecparams.curve, sm3.toHex(data.subarray(0, 65)))
+      const point1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
       const point2 = point1.multiply(d)
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
@@ -506,6 +509,28 @@ function encrypt (pubkey, data) {
   return pubkey.encrypt(data)
 }
 
+function plainCiphertext2ASN1 (data) {
+  data = sm3.fromHex(data)
+  const dataLen = data.length
+
+  if (data[0] !== UNCOMPRESSED) {
+    throw new Error('Unsupport point marshal mode')
+  }
+  if (dataLen < 97) {
+    throw new Error('Invalid cipher content')
+  }
+  const point1 = rs.ECPointFp.decodeFrom(rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve, Array.from(data.subarray(0, 65)))
+  const c2 = data.subarray(97)
+  const c3 = data.subarray(65, 97)
+  const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
+  const derY = new rs.asn1.DERInteger({ bigint: point1.getY().toBigInteger() })
+  const derC3 = new rs.asn1.DEROctetString({ hex: sm3.toHex(c3) })
+  const derC2 = new rs.asn1.DEROctetString({ hex: sm3.toHex(c2) })
+  const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
+
+  return derSeq.getEncodedHex()
+}
+
 function encryptHex (pubkey, data) {
   return encrypt(pubkey, sm3.fromHex(data))
 }
@@ -582,5 +607,8 @@ module.exports = {
   encryptHex,
   decrypt,
   decryptHex,
-  createX509
+  createX509,
+  CIPHERTEXT_ENCODING_PLAIN,
+  CIPHERTEXT_ENCODING_ASN1,
+  plainCiphertext2ASN1
 }
