@@ -60,7 +60,7 @@ rs.asn1.x509.OID.name2oidList[SM2_CURVE_NAME] = '1.2.156.10197.1.301'
 const defaultEncryptFunc = rs.Cipher.encrypt
 rs.Cipher.encrypt = function (s, keyObj, algName) {
   if (keyObj instanceof rs.ECDSA && keyObj.isPublic && keyObj.curveName === SM2_CURVE_NAME) {
-    return encrypt(keyObj, s)
+    return encrypt(keyObj, s, algName)
   }
   return defaultEncryptFunc(s, keyObj, algName)
 }
@@ -86,6 +86,21 @@ if (!rs.BigInteger.prototype.toByteArrayUnsigned) {
   }
 }
 
+class EncrypterOptions {
+  constructor (encodingFormat) {
+    if (encodingFormat !== CIPHERTEXT_ENCODING_PLAIN && encodingFormat !== CIPHERTEXT_ENCODING_ASN1) {
+      throw new Error('SM2: unsupport ciphertext encoding format')
+    }
+    this.encodingFormat = encodingFormat
+  }
+
+  getEncodingFormat () {
+    return this.encodingFormat
+  }
+}
+
+const DEFAULT_SM2_ENCRYPT_OPTIONS = new EncrypterOptions(CIPHERTEXT_ENCODING_PLAIN)
+
 const sm2 = Symbol('sm2')
 
 function adaptSM2 (ecdsa) {
@@ -94,16 +109,19 @@ function adaptSM2 (ecdsa) {
   // @return {string} encrypted hex content
   if (!ecdsa[sm2]) {
     ecdsa[sm2] = true
-    ecdsa.encrypt = function (data) {
+    ecdsa.encrypt = function (data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
-      return this.encryptRaw(data, Q)
+      return this.encryptRaw(data, Q, opts)
     }
 
-    ecdsa.encryptHex = function (dataHex) {
-      return this.encrypt(sm3.fromHex(dataHex))
+    ecdsa.encryptHex = function (dataHex, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
+      return this.encrypt(sm3.fromHex(dataHex), opts)
     }
 
-    ecdsa.encryptRaw = function (data, Q) {
+    ecdsa.encryptRaw = function (data, Q, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
+      if (!opts || !(opts instanceof EncrypterOptions)) {
+        opts = DEFAULT_SM2_ENCRYPT_OPTIONS
+      }
       data = sm3.normalizeInput(data)
       const n = this.ecparams.n
       const G = this.ecparams.G
@@ -132,7 +150,15 @@ function adaptSM2 (ecdsa) {
         md.update(data)
         md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
         const hash = md.digestRaw()
-        return sm3.toHex(new Uint8Array(point1.getEncoded(false))) + sm3.toHex(hash) + sm3.toHex(t)
+        if (opts.getEncodingFormat() === CIPHERTEXT_ENCODING_PLAIN) {
+          return sm3.toHex(new Uint8Array(point1.getEncoded(false))) + sm3.toHex(hash) + sm3.toHex(t)
+        }
+        const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
+        const derY = new rs.asn1.DERInteger({ bigint: point1.getY().toBigInteger() })
+        const derC3 = new rs.asn1.DEROctetString({ hex: sm3.toHex(hash) })
+        const derC2 = new rs.asn1.DEROctetString({ hex: sm3.toHex(t) })
+        const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
+        return derSeq.getEncodedHex()
       } while (true)
     }
 
@@ -153,10 +179,10 @@ function adaptSM2 (ecdsa) {
       const dataLen = data.length
 
       if (data[0] !== UNCOMPRESSED) {
-        throw new Error('Unsupport point marshal mode')
+        throw new Error('SM2: unsupport point marshal mode')
       }
       if (dataLen < 97) {
-        throw new Error('Invalid cipher content')
+        throw new Error('SM2: invalid cipher content length')
       }
       const point1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
       const point2 = point1.multiply(d)
@@ -164,7 +190,7 @@ function adaptSM2 (ecdsa) {
       const c3 = data.subarray(65, 97)
       const t = sm3.kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
       if (!t) {
-        throw new Error('Invalid cipher content')
+        throw new Error('SM2: invalid cipher content')
       }
       for (let i = 0; i < c3.length; i++) {
         c2[i] ^= t[i]
@@ -221,7 +247,7 @@ function adaptSM2 (ecdsa) {
       uid = sm3.normalizeInput(uid)
       const uidLen = uid.length
       if (uidLen >= 0x2000) {
-        throw new Error('the uid is too long')
+        throw new Error('SM2: the uid is too long')
       }
       const entla = uidLen << 3
       const md = new MessageDigest()
@@ -438,10 +464,10 @@ class Signature {
 
   sm2Sign (data, uid) {
     if (!data) {
-      throw new Error('SM2 sign, please do not call update before sign')
+      throw new Error('SM2: please do not call update before sign')
     }
     if (this.fallbackSig || !(this.prvKey instanceof rs.ECDSA)) {
-      throw new Error('No valid SM2 private key')
+      throw new Error('SM2: no valid SM2 private key')
     }
     this.update(this.prvKey.calculateZA(uid))
     this.update(data)
@@ -483,10 +509,10 @@ class Signature {
 
   sm2Verify (hSigVal, data, uid) {
     if (!data) {
-      throw new Error('SM2 verify, please do not call update before verify')
+      throw new Error('SM2: please do not call update before verify')
     }
     if (this.fallbackSig || !(this.pubKey instanceof rs.ECDSA)) {
-      throw new Error('No valid SM2 public key')
+      throw new Error('SM2: no valid SM2 public key')
     }
     this.update(this.pubKey.calculateZA(uid))
     this.update(data)
@@ -495,7 +521,15 @@ class Signature {
   }
 }
 
-function encrypt (pubkey, data) {
+/**
+ * SM2 encryption function
+ *
+ * @param {string|object} pubkey hex public key string or ECDSA object
+ * @param {string|Buffer|Uint8Array} data plaintext data
+ * @param {EncrypterOptions} opts options, just support encodingFormat now, default is plain encoding format
+ * @returns hex plain format ciphertext
+ */
+function encrypt (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
   if (typeof pubkey === 'string') {
     pubkey = new rs.ECDSA({
       curve: SM2_CURVE_NAME,
@@ -503,21 +537,27 @@ function encrypt (pubkey, data) {
     })
   }
   if (!(pubkey instanceof rs.ECDSA) || pubkey.curveName !== SM2_CURVE_NAME) {
-    throw new Error('Invalid ec public key')
+    throw new Error('SM2: invalid ec public key')
   }
   adaptSM2(pubkey)
-  return pubkey.encrypt(data)
+  return pubkey.encrypt(data, opts)
 }
 
+/**
+ * Convert hex plain format ciphertext to hex asn.1 format ciphertext
+ *
+ * @param {string} data hex plain format ciphertext
+ * @returns hex ans.1 format ciphertext
+ */
 function plainCiphertext2ASN1 (data) {
   data = sm3.fromHex(data)
   const dataLen = data.length
 
   if (data[0] !== UNCOMPRESSED) {
-    throw new Error('Unsupport point marshal mode')
+    throw new Error('SM2: unsupport point marshal mode')
   }
   if (dataLen < 97) {
-    throw new Error('Invalid cipher content')
+    throw new Error('SM2: invalid cipher content')
   }
   const point1 = rs.ECPointFp.decodeFrom(rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve, Array.from(data.subarray(0, 65)))
   const c2 = data.subarray(97)
@@ -531,10 +571,68 @@ function plainCiphertext2ASN1 (data) {
   return derSeq.getEncodedHex()
 }
 
-function encryptHex (pubkey, data) {
-  return encrypt(pubkey, sm3.fromHex(data))
+function _getASN1Values (hexASN1Data, aIdx, aTag) {
+  const aValue = []
+  for (let i = 0; i < aIdx.length; i++) {
+    const idx = aIdx[i]
+    const tag = hexASN1Data.substr(idx, 2)
+    if (tag !== aTag[i]) {
+      throw new Error('SM2: invalid asn1 format ciphertext, want ' + aTag[i] + ', get ' + tag)
+    }
+    aValue.push(rs.ASN1HEX.getV(hexASN1Data, idx))
+  }
+  return aValue
 }
 
+/**
+ * Convert hex asn.1 format ciphertext to hex plain format ciphertext
+ *
+ * @param {string} hexASN1Data hex asn.1 data
+ * @returns hex plain format cipher text
+ */
+function asn1Ciphertext2Plain (hexASN1Data) {
+  if (!hexASN1Data || !rs.ASN1HEX.isASN1HEX(hexASN1Data)) {
+    throw new Error('SM2: invalid asn1 format ciphertext')
+  }
+  const idx = 0
+  const tag = hexASN1Data.substr(idx, 2)
+  if (tag !== '30') {
+    throw new Error('SM2: invalid asn1 format ciphertext')
+  }
+  const aIdx = rs.ASN1HEX.getChildIdx(hexASN1Data, idx)
+  if (aIdx.length !== 4) {
+    throw new Error('SM2: invalid asn1 format ciphertext')
+  }
+  const aValue = _getASN1Values(hexASN1Data, aIdx, ['02', '02', '04', '04'])
+  const curve = rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve
+  const x = new rs.BigInteger(aValue[0], 16)
+  const y = new rs.BigInteger(aValue[1], 16)
+  const point = new rs.ECPointFp(curve, curve.fromBigInteger(x), curve.fromBigInteger(y))
+  const c3 = aValue[2]
+  const c2 = aValue[3]
+
+  return sm3.toHex(new Uint8Array(point.getEncoded(false))) + c3 + c2
+}
+
+/**
+ * SM2 encryption function
+ *
+ * @param {string|object} pubkey hex public key string or ECDSA object
+ * @param {string} data hex plaintext
+ * @param {EncrypterOptions} opts options, just support encodingFormat now, default is plain encoding format
+ * @returns hex plain format ciphertext
+ */
+function encryptHex (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
+  return encrypt(pubkey, sm3.fromHex(data), opts)
+}
+
+/**
+ * SM2 decrypt function
+ *
+ * @param {string|object} prvKey private key used to decrypt, private key hex string or ECDSA object.
+ * @param {string|Buffer|Uint8Array} data plain format (C1||C3|C2) ciphertext data
+ * @returns hex plaintext
+ */
 function decrypt (prvKey, data) {
   if (typeof prvKey === 'string') {
     prvKey = new rs.ECDSA({
@@ -543,13 +641,30 @@ function decrypt (prvKey, data) {
     })
   }
   if (!(prvKey instanceof rs.ECDSA) || prvKey.curveName !== SM2_CURVE_NAME) {
-    throw new Error('Invalid ec public key')
+    throw new Error('SM2: invalid ec public key')
   }
   adaptSM2(prvKey)
   return prvKey.decrypt(data)
 }
 
+/**
+ * SM2 Decrypt function
+ *
+ * @param {string|object} prvKey private key used to decrypt, private key hex string or ECDSA object.
+ * @param {string} data hex plain/asn.1 format ciphertext data
+ * @returns hex plaintext
+ */
 function decryptHex (prvKey, data) {
+  if (typeof data !== 'string' || data.length < 98 * 2) {
+    throw new Error('SM2: invalid chiphertext length')
+  }
+  const tag = data.substr(0, 2)
+  if (tag !== '30' && tag !== '04') {
+    throw new Error(`SM2: invalid ciphertext encoding format ${tag}`)
+  }
+  if (tag === '30') {
+    data = asn1Ciphertext2Plain(data)
+  }
   return decrypt(prvKey, sm3.fromHex(data))
 }
 
@@ -598,6 +713,14 @@ function createX509 () {
   return x
 }
 
+function asn1EncrypterOptions () {
+  return new EncrypterOptions(CIPHERTEXT_ENCODING_ASN1)
+}
+
+function plainEncrypterOptions () {
+  return new EncrypterOptions(CIPHERTEXT_ENCODING_PLAIN)
+}
+
 module.exports = {
   Signature,
   createSM2Signature,
@@ -608,7 +731,8 @@ module.exports = {
   decrypt,
   decryptHex,
   createX509,
-  CIPHERTEXT_ENCODING_PLAIN,
-  CIPHERTEXT_ENCODING_ASN1,
-  plainCiphertext2ASN1
+  plainCiphertext2ASN1,
+  asn1Ciphertext2Plain,
+  asn1EncrypterOptions,
+  plainEncrypterOptions
 }
