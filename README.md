@@ -1,4 +1,5 @@
 # sm2js
+[![SM2JS CI](https://github.com/emmansun/sm2js/actions/workflows/ci.yml/badge.svg)](https://github.com/emmansun/sm2js/actions/workflows/ci.yml)
 [![npm version](https://badge.fury.io/js/gmsm-sm2js.svg)](https://badge.fury.io/js/gmsm-sm2js)
 [![NPM Downloads][npm-downloads-image]][npm-url]
 
