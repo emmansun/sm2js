@@ -1,6 +1,6 @@
 {
     "name": "gmsm-sm2js",
-    "version": "0.4.0",
+    "version": "0.5.1",
     "description": "Pure Javascript implementation of the SM2 functions",
     "keywords": [
         "sm2",
@@ -12,11 +12,11 @@
     },
     "dependencies": {
         "gmsm-sm3js": "^0.2.0",
-        "jsrsasign": "^10.8.6"
+        "jsrsasign": "^11.0.0"
     },
     "devDependencies": {
         "standard": "^17.1.0",
-        "tape": "^5.7.2"
+        "tape": "^5.7.4"
     },
     "repository": {
         "type": "git",

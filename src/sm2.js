@@ -57,22 +57,6 @@ rs.ECDSA.getName = function (s) {
 rs.asn1.x509.OID.name2oidList[SM2_SIGN_ALG] = '1.2.156.10197.1.501'
 rs.asn1.x509.OID.name2oidList[SM2_CURVE_NAME] = '1.2.156.10197.1.301'
 
-const defaultEncryptFunc = rs.Cipher.encrypt
-rs.Cipher.encrypt = function (s, keyObj, algName) {
-  if (keyObj instanceof rs.ECDSA && keyObj.isPublic && keyObj.curveName === SM2_CURVE_NAME) {
-    return encrypt(keyObj, s, algName)
-  }
-  return defaultEncryptFunc(s, keyObj, algName)
-}
-
-const defaultDecryptFunc = rs.Cipher.decrypt
-rs.Cipher.decrypt = function (hex, keyObj, algName) {
-  if (keyObj instanceof rs.ECDSA && keyObj.isPrivate && keyObj.curveName === SM2_CURVE_NAME) {
-    return decryptHex(keyObj, hex)
-  }
-  return defaultDecryptFunc(hex, keyObj, algName)
-}
-
 if (!rs.BigInteger.prototype.toByteArrayUnsigned) {
   /**
  * Returns a byte array representation of the big integer.
