@@ -14,5 +14,7 @@
 
 For usage, please reference [sm2_test.js](https://github.com/emmansun/sm2js/blob/master/src/sm2_test.js "sm2_test.js")
 
+[一种使用nodejs SM4-ECB和sjcl gcm的SM4-GCM实现](https://gist.github.com/emmansun/2eb37257cfe6ed561d1668f720f51030)
+
 [npm-downloads-image]: https://badgen.net/npm/dm/gmsm-sm2js
 [npm-url]: https://npmjs.org/package/gmsm-sm2js
