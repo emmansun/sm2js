@@ -21,9 +21,6 @@ const SM3_T = [
   0x9d8a7a87, 0x3b14f50f, 0x7629ea1e, 0xec53d43c, 0xd8a7a879, 0xb14f50f3, 0x629ea1e7, 0xc53d43ce,
   0x8a7a879d, 0x14f50f3b, 0x29ea1e76, 0x53d43cec, 0xa7a879d8, 0x4f50f3b1, 0x9ea1e762, 0x3d43cec5]
 
-// Reusable object
-const W = []
-
 /**
      * SM3 hash algorithm.
      */
@@ -56,6 +53,7 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
   _doProcessBlock: function (M, offset) {
     // Shortcut
     const H = this._hash.words
+    const W = []
 
     // Working variables
     let a = H[0]
