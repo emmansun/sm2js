@@ -1,4 +1,5 @@
 require('./cryptojs_sm3')
+require('./cryptojs_sm4')
 const rs = require('jsrsasign')
 const sm3 = require('gmsm-sm3js')
 const util = require('./util')

@@ -22,8 +22,8 @@ const SM3_T = [
   0x8a7a879d, 0x14f50f3b, 0x29ea1e76, 0x53d43cec, 0xa7a879d8, 0x4f50f3b1, 0x9ea1e762, 0x3d43cec5]
 
 /**
-     * SM3 hash algorithm.
-     */
+ * SM3 hash algorithm.
+ */
 const SM3 = CAlgo.SM3 = Hasher.extend({
   rotateLeft32: function (x, k) {
     const n = 32
