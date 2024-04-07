@@ -56,7 +56,7 @@ iA==
 -----END CERTIFICATE-----
 `
 
-const sm2keySample = `
+const sm2PrivateKeyEncryptedPKCS8 = `
 -----BEGIN ENCRYPTED PRIVATE KEY-----
 MIH2MGEGCSqGSIb3DQEFDTBUMDQGCSqGSIb3DQEFDDAnBBDa6ckWJNP3QBD7MIF8
 4nVqAgEQAgEQMA0GCSqBHM9VAYMRAgUAMBwGCCqBHM9VAWgCBBDMUgr+5Y/XN2g9
@@ -65,6 +65,12 @@ x6RWxo8kpKO2yj0a/Jh9WZCD4XAcoZ9aMopiWlOdpXJr/iQlMGdirCYIoF37lHMc
 jZHNffmk4ii7NxCfjrzpiFq4clYsNMXeSEnq1tuOEur4kYcjHYSIFc9bPG656a60
 +SIJsJuPFi0f
 -----END ENCRYPTED PRIVATE KEY-----`
+
+const sm2PrivateKeyPlainPKCS8 = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqBHM9VAYItBG0wawIBAQQgbFoKCy7tPL7D5PEl
+K/4OKMUEoca/GZnuuwr57w+ObIWhRANCAASDVuZCpA69GNKbo1MvvZ87vujwJ8P2
+85pbovhwNp+ZiJgfXv5V0cXN9sDvKwcIR6FPf99CcqjfCcRC8wWK+Uuh
+-----END PRIVATE KEY-----`
 
 test('SM2 P-256 encrypt/decrypt local', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
@@ -195,7 +201,15 @@ test('SM2 read cert', function (t) {
 })
 
 test('Parse PKCS8 encrypted SM2 private key', function (t) {
-  const key = rs.KEYUTIL.getKeyFromEncryptedPKCS8PEM(sm2keySample, 'Password1')
+  const key = rs.KEYUTIL.getKeyFromEncryptedPKCS8PEM(sm2PrivateKeyEncryptedPKCS8, 'Password1')
+  t.equal(key.curveName, 'sm2p256v1')
+  t.equal(key.prvKeyHex, '6c5a0a0b2eed3cbec3e4f1252bfe0e28c504a1c6bf1999eebb0af9ef0f8e6c85')
+  t.equal(key.pubKeyHex, '048356e642a40ebd18d29ba3532fbd9f3bbee8f027c3f6f39a5ba2f870369f9988981f5efe55d1c5cdf6c0ef2b070847a14f7fdf4272a8df09c442f3058af94ba1')
+  t.end()
+})
+
+test('Parse PKCS8 unencrypted SM2 private key', function (t) {
+  const key = rs.KEYUTIL.getKeyFromPlainPrivatePKCS8PEM(sm2PrivateKeyPlainPKCS8)
   t.equal(key.curveName, 'sm2p256v1')
   t.equal(key.prvKeyHex, '6c5a0a0b2eed3cbec3e4f1252bfe0e28c504a1c6bf1999eebb0af9ef0f8e6c85')
   t.equal(key.pubKeyHex, '048356e642a40ebd18d29ba3532fbd9f3bbee8f027c3f6f39a5ba2f870369f9988981f5efe55d1c5cdf6c0ef2b070847a14f7fdf4272a8df09c442f3058af94ba1')

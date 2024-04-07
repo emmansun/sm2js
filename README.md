@@ -10,6 +10,7 @@
 - encrypt/decrypt functions (Passed integration test with ALI KMS), support both PLAIN and ASN.1 encoding format ciphertext output
 - SM2 certificate signing request generation and parse
 - SM2 certificate parse and verify signature, test CA & certificate are generated from https://www.gmcert.org/
+- Parse SM2 private key in PKCS8 format (both encrypted and plaintext).
 
 
 For usage, please reference [sm2_test.js](https://github.com/emmansun/sm2js/blob/master/src/sm2_test.js "sm2_test.js")
