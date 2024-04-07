@@ -328,10 +328,13 @@ KJUR.crypto.Cipher.decrypt = function (hex, keyObj, algName, param) {
     } else {
       throw new Error('unsupported algorithm: ' + algName)
     }
+    console.log(C.enc.Hex.stringify(wDec))
     return C.enc.Hex.stringify(wDec)
   } else {
     throw new Error('Cipher.decrypt: unsupported key or algorithm')
   }
 }
+
+rs.asn1.x509.OID.name2oidList['sm4-CBC'] = '1.2.156.10197.1.104.2'
 
 module.exports = SM4

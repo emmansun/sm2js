@@ -706,6 +706,48 @@ function plainEncrypterOptions () {
   return new EncrypterOptions(CIPHERTEXT_ENCODING_PLAIN)
 }
 
+const C = rs.CryptoJS
+rs.KEYUTIL.getDKFromPBES2Param = function (pPBES2, passcode) {
+  const pHasher = {
+    hmacWithSHA1: C.algo.SHA1,
+    hmacWithSHA224: C.algo.SHA224,
+    hmacWithSHA256: C.algo.SHA256,
+    hmacWithSHA384: C.algo.SHA384,
+    hmacWithSHA512: C.algo.SHA512,
+    hmacWithSM3: C.algo.SM3
+  }
+  const pKeySize = {
+    'des-EDE3-CBC': 192 / 32,
+    'aes128-CBC': 128 / 32,
+    'aes256-CBC': 256 / 32,
+    'sm4-CBC': 128 / 32
+  }
+
+  const hasher = pHasher[pPBES2.prf]
+  if (hasher === undefined) { throw new Error('unsupported prf') }
+
+  const keysize = pKeySize[pPBES2.encalg]
+  if (keysize === undefined) { throw new Error('unsupported encalg') }
+
+  const wSalt = C.enc.Hex.parse(pPBES2.salt)
+  const iter = pPBES2.iter
+  try {
+    const wKey = C.PBKDF2(passcode,
+      wSalt,
+      {
+        keySize: keysize,
+        iterations: iter,
+        hasher
+      })
+    const keyHex = C.enc.Hex.stringify(wKey)
+    console.log(pPBES2)
+    console.log(keyHex)
+    return keyHex
+  } catch (ex) {
+    throw new Error('PBKDF2 error: ' + ex + ' ' + JSON.stringify(pPBES2) + ' ' + passcode)
+  }
+}
+
 module.exports = {
   Signature,
   createSM2Signature,

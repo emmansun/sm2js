@@ -157,38 +157,41 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
 })
 
 /**
-     * Shortcut function to the hasher's object interface.
-     *
-     * @param {WordArray|string} message The message to hash.
-     *
-     * @return {WordArray} The hash.
-     *
-     * @static
-     *
-     * @example
-     *
-     *     var hash = CryptoJS.SM3('message');
-     *     var hash = CryptoJS.SM3(wordArray);
-     */
+ * Shortcut function to the hasher's object interface.
+ *
+ * @param {WordArray|string} message The message to hash.
+ *
+ * @return {WordArray} The hash.
+ *
+ * @static
+ *
+ * @example
+ *
+ *     var hash = CryptoJS.SM3('message');
+ *     var hash = CryptoJS.SM3(wordArray);
+ */
 C.SM3 = Hasher._createHelper(SM3)
 
 /**
-     * Shortcut function to the HMAC's object interface.
-     *
-     * @param {WordArray|string} message The message to hash.
-     * @param {WordArray|string} key The secret key.
-     *
-     * @return {WordArray} The HMAC.
-     *
-     * @static
-     *
-     * @example
-     *
-     *     var hmac = CryptoJS.HmacSM3(message, key);
-     */
+ * Shortcut function to the HMAC's object interface.
+ *
+ * @param {WordArray|string} message The message to hash.
+ * @param {WordArray|string} key The secret key.
+ *
+ * @return {WordArray} The HMAC.
+ *
+ * @static
+ *
+ * @example
+ *
+ *     var hmac = CryptoJS.HmacSM3(message, key);
+ */
 C.HmacSM3 = Hasher._createHmacHelper(SM3)
 
 KJUR.crypto.Util.DEFAULTPROVIDER.sm3 = 'cryptojs'
 KJUR.crypto.Util.CRYPTOJSMESSAGEDIGESTNAME.sm3 = SM3
+
+rs.asn1.x509.OID.name2oidList.sm3 = '1.2.156.10197.1.401.1'
+rs.asn1.x509.OID.name2oidList.hmacWithSM3 = '1.2.156.10197.1.401.2'
 
 module.exports = SM3
