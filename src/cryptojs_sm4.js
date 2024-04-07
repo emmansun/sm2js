@@ -328,7 +328,6 @@ KJUR.crypto.Cipher.decrypt = function (hex, keyObj, algName, param) {
     } else {
       throw new Error('unsupported algorithm: ' + algName)
     }
-    console.log(C.enc.Hex.stringify(wDec))
     return C.enc.Hex.stringify(wDec)
   } else {
     throw new Error('Cipher.decrypt: unsupported key or algorithm')

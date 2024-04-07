@@ -707,6 +707,48 @@ function plainEncrypterOptions () {
 }
 
 const C = rs.CryptoJS
+rs.KEYUTIL.parsePBES2 = function (hP8Prv) {
+  const pASN = rs.ASN1HEX.parse(hP8Prv)
+  if (util.aryval(pASN, 'seq.0.seq.0.oid') !== 'pkcs5PBES2' ||
+    util.aryval(pASN, 'seq.0.seq.1.seq.0.seq.0.oid') !== 'pkcs5PBKDF2') {
+    throw new Error('not pkcs5PBES2 and pkcs5PBKDF2 used')
+  }
+  const pASNKDF = util.aryval(pASN, 'seq.0.seq.1.seq.0.seq.1.seq')
+  if (pASNKDF === undefined) {
+    throw new Error('PBKDF2 parameter not found')
+  }
+  const salt = util.aryval(pASNKDF, '0.octstr.hex')
+  const hIter = util.aryval(pASNKDF, '1.int.hex')
+  let prf
+  if (pASNKDF.length === 4) {
+    prf = util.aryval(pASNKDF, '3.seq.0.oid', 'hmacWithSHA1')
+  } else {
+    prf = util.aryval(pASNKDF, '2.seq.0.oid', 'hmacWithSHA1')
+  }
+  let iter = -1
+  try {
+    iter = parseInt(hIter, 16)
+  } catch (ex) {
+    throw new Error('iter not proper value')
+  }
+
+  const encalg = util.aryval(pASN, 'seq.0.seq.1.seq.1.seq.0.oid')
+  const enciv = util.aryval(pASN, 'seq.0.seq.1.seq.1.seq.1.octstr.hex')
+  const enc = util.aryval(pASN, 'seq.1.octstr.hex')
+  if (encalg === undefined || enciv === undefined || enc === undefined) {
+    throw new Error('encalg, enciv or enc is undefined')
+  }
+
+  return {
+    salt,
+    iter,
+    prf,
+    encalg,
+    enciv,
+    enc
+  }
+}
+
 rs.KEYUTIL.getDKFromPBES2Param = function (pPBES2, passcode) {
   const pHasher = {
     hmacWithSHA1: C.algo.SHA1,
@@ -740,8 +782,6 @@ rs.KEYUTIL.getDKFromPBES2Param = function (pPBES2, passcode) {
         hasher
       })
     const keyHex = C.enc.Hex.stringify(wKey)
-    console.log(pPBES2)
-    console.log(keyHex)
     return keyHex
   } catch (ex) {
     throw new Error('PBKDF2 error: ' + ex + ' ' + JSON.stringify(pPBES2) + ' ' + passcode)
