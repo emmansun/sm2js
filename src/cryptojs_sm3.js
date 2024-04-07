@@ -1,5 +1,4 @@
 const rs = require('jsrsasign')
-const KJUR = rs.KJUR
 const C = rs.CryptoJS
 const CLib = C.lib
 const WordArray = CLib.WordArray
@@ -187,11 +186,5 @@ C.SM3 = Hasher._createHelper(SM3)
  *     var hmac = CryptoJS.HmacSM3(message, key);
  */
 C.HmacSM3 = Hasher._createHmacHelper(SM3)
-
-KJUR.crypto.Util.DEFAULTPROVIDER.sm3 = 'cryptojs'
-KJUR.crypto.Util.CRYPTOJSMESSAGEDIGESTNAME.sm3 = SM3
-
-rs.asn1.x509.OID.name2oidList.sm3 = '1.2.156.10197.1.401.1'
-rs.asn1.x509.OID.name2oidList.hmacWithSM3 = '1.2.156.10197.1.401.2'
 
 module.exports = SM3
