@@ -5,21 +5,6 @@ const WordArray = CLib.WordArray
 const Hasher = CLib.Hasher
 const CAlgo = C.algo
 
-const SM3_IV32 = [
-  0x7380166f, 0x4914b2b9, 0x172442d7, 0xda8a0600,
-  0xa96f30bc, 0x163138aa, 0xe38dee4d, 0xb0fb0e4e
-]
-
-const SM3_T = [
-  0x79cc4519, 0xf3988a32, 0xe7311465, 0xce6228cb, 0x9cc45197, 0x3988a32f, 0x7311465e, 0xe6228cbc,
-  0xcc451979, 0x988a32f3, 0x311465e7, 0x6228cbce, 0xc451979c, 0x88a32f39, 0x11465e73, 0x228cbce6,
-  0x9d8a7a87, 0x3b14f50f, 0x7629ea1e, 0xec53d43c, 0xd8a7a879, 0xb14f50f3, 0x629ea1e7, 0xc53d43ce,
-  0x8a7a879d, 0x14f50f3b, 0x29ea1e76, 0x53d43cec, 0xa7a879d8, 0x4f50f3b1, 0x9ea1e762, 0x3d43cec5,
-  0x7a879d8a, 0xf50f3b14, 0xea1e7629, 0xd43cec53, 0xa879d8a7, 0x50f3b14f, 0xa1e7629e, 0x43cec53d,
-  0x879d8a7a, 0xf3b14f5, 0x1e7629ea, 0x3cec53d4, 0x79d8a7a8, 0xf3b14f50, 0xe7629ea1, 0xcec53d43,
-  0x9d8a7a87, 0x3b14f50f, 0x7629ea1e, 0xec53d43c, 0xd8a7a879, 0xb14f50f3, 0x629ea1e7, 0xc53d43ce,
-  0x8a7a879d, 0x14f50f3b, 0x29ea1e76, 0x53d43cec, 0xa7a879d8, 0x4f50f3b1, 0x9ea1e762, 0x3d43cec5]
-
 /**
  * SM3 hash algorithm.
  */
@@ -46,7 +31,10 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
   },
 
   _doReset: function () {
-    this._hash = WordArray.create(SM3_IV32.slice(0))
+    if (!this._table[0]) {
+      this._precompute()
+    }
+    this._hash = WordArray.create(this._iv.slice(0))
   },
 
   _doProcessBlock: function (M, offset) {
@@ -71,7 +59,7 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     for (let i = 0; i < 12; i++) {
       W[i + 4] = M[offset + i + 4] | 0
       tt2 = this.rotateLeft32(a, 12)
-      ss1 = this.rotateLeft32(tt2 + e + SM3_T[i], 7)
+      ss1 = this.rotateLeft32(tt2 + e + this._table[i], 7)
       ss2 = ss1 ^ tt2
       tt1 = (a ^ b ^ c) + d + ss2 + (W[i] ^ W[i + 4])
       tt2 = (e ^ f ^ g) + h + ss1 + W[i]
@@ -87,7 +75,7 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     for (let i = 12; i < 16; i++) {
       W[i + 4] = this._p1(W[i - 12] ^ W[i - 5] ^ this.rotateLeft32(W[i + 1], 15)) ^ this.rotateLeft32(W[i - 9], 7) ^ W[i - 2]
       tt2 = this.rotateLeft32(a, 12)
-      ss1 = this.rotateLeft32(tt2 + e + SM3_T[i], 7)
+      ss1 = this.rotateLeft32(tt2 + e + this._table[i], 7)
       ss2 = ss1 ^ tt2
       tt1 = (a ^ b ^ c) + d + ss2 + (W[i] ^ W[i + 4])
       tt2 = (e ^ f ^ g) + h + ss1 + W[i]
@@ -103,7 +91,7 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     for (let i = 16; i < 64; i++) {
       W[i + 4] = this._p1(W[i - 12] ^ W[i - 5] ^ this.rotateLeft32(W[i + 1], 15)) ^ this.rotateLeft32(W[i - 9], 7) ^ W[i - 2]
       tt2 = this.rotateLeft32(a, 12)
-      ss1 = this.rotateLeft32(tt2 + e + SM3_T[i], 7)
+      ss1 = this.rotateLeft32(tt2 + e + this._table[i], 7)
       ss2 = ss1 ^ tt2
       tt1 = this._ff(a, b, c) + d + ss2 + (W[i] ^ W[i + 4])
       tt2 = this._gg(e, f, g) + h + ss1 + W[i]
@@ -152,7 +140,19 @@ const SM3 = CAlgo.SM3 = Hasher.extend({
     clone._hash = this._hash.clone()
 
     return clone
-  }
+  },
+
+  _precompute: function () {
+    for (let i = 0; i < 16; i++) {
+      this._table[i] = this.rotateLeft32(0x79cc4519, i)
+    }
+    for (let i = 16; i < 64; i++) {
+      this._table[i] = this.rotateLeft32(0x7a879d8a, i)
+    }
+  },
+
+  _table: [],
+  _iv: [0x7380166f, 0x4914b2b9, 0x172442d7, 0xda8a0600, 0xa96f30bc, 0x163138aa, 0xe38dee4d, 0xb0fb0e4e]
 })
 
 /**
