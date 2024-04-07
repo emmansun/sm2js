@@ -719,12 +719,7 @@ rs.KEYUTIL.parsePBES2 = function (hP8Prv) {
   }
   const salt = util.aryval(pASNKDF, '0.octstr.hex')
   const hIter = util.aryval(pASNKDF, '1.int.hex')
-  let prf
-  if (pASNKDF.length === 4) {
-    prf = util.aryval(pASNKDF, '3.seq.0.oid', 'hmacWithSHA1')
-  } else {
-    prf = util.aryval(pASNKDF, '2.seq.0.oid', 'hmacWithSHA1')
-  }
+  const prf = util.aryval(pASNKDF, `${pASNKDF.length - 1}.seq.0.oid`, 'hmacWithSHA1')
   let iter = -1
   try {
     iter = parseInt(hIter, 16)
