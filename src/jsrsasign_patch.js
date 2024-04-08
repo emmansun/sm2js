@@ -1,21 +1,20 @@
 const rs = require('jsrsasign')
-const util = require('./util')
 const KJUR = rs.KJUR
 const C = rs.CryptoJS
 
 function parsePBES2 (hP8Prv) {
   const pASN = rs.ASN1HEX.parse(hP8Prv)
-  if (util.aryval(pASN, 'seq.0.seq.0.oid') !== 'pkcs5PBES2' ||
-    util.aryval(pASN, 'seq.0.seq.1.seq.0.seq.0.oid') !== 'pkcs5PBKDF2') {
+  if (rs.aryval(pASN, 'seq.0.seq.0.oid') !== 'pkcs5PBES2' ||
+    rs.aryval(pASN, 'seq.0.seq.1.seq.0.seq.0.oid') !== 'pkcs5PBKDF2') {
     throw new Error('not pkcs5PBES2 and pkcs5PBKDF2 used')
   }
-  const pASNKDF = util.aryval(pASN, 'seq.0.seq.1.seq.0.seq.1.seq')
+  const pASNKDF = rs.aryval(pASN, 'seq.0.seq.1.seq.0.seq.1.seq')
   if (pASNKDF === undefined) {
     throw new Error('PBKDF2 parameter not found')
   }
-  const salt = util.aryval(pASNKDF, '0.octstr.hex')
-  const hIter = util.aryval(pASNKDF, '1.int.hex')
-  const prf = util.aryval(pASNKDF, `${pASNKDF.length - 1}.seq.0.oid`, 'hmacWithSHA1')
+  const salt = rs.aryval(pASNKDF, '0.octstr.hex')
+  const hIter = rs.aryval(pASNKDF, '1.int.hex')
+  const prf = rs.aryval(pASNKDF, `${pASNKDF.length - 1}.seq.0.oid`, 'hmacWithSHA1')
   let iter = -1
   try {
     iter = parseInt(hIter, 16)
@@ -23,9 +22,9 @@ function parsePBES2 (hP8Prv) {
     throw new Error('iter not proper value')
   }
 
-  const encalg = util.aryval(pASN, 'seq.0.seq.1.seq.1.seq.0.oid')
-  const enciv = util.aryval(pASN, 'seq.0.seq.1.seq.1.seq.1.octstr.hex')
-  const enc = util.aryval(pASN, 'seq.1.octstr.hex')
+  const encalg = rs.aryval(pASN, 'seq.0.seq.1.seq.1.seq.0.oid')
+  const enciv = rs.aryval(pASN, 'seq.0.seq.1.seq.1.seq.1.octstr.hex')
+  const enc = rs.aryval(pASN, 'seq.1.octstr.hex')
   if (encalg === undefined || enciv === undefined || enc === undefined) {
     throw new Error('encalg, enciv or enc is undefined')
   }
@@ -115,13 +114,13 @@ function patchSM4 () {
  * KJUR.crypto.Cipher.encrypt(any, any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41...", enc: "12abcd..." })
  */
   KJUR.crypto.Cipher.encrypt = function (s, keyObj, algName, param) {
-    if (util.CryptoJSaryval(param, 'enclag') !== undefined) algName = param.encalg
+    if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
 
     if (typeof algName === 'string' && algName.substr(-4) === '-CBC') {
       let hKey = keyObj
       const hPlain = s
-      if (util.aryval(param, 'key') !== undefined) hKey = param.key
-      // if (aryval(param, 'enc') !== undefined) hEnc = param.enc
+      if (rs.aryval(param, 'key') !== undefined) hKey = param.key
+      // if (rs.aryval(param, 'enc') !== undefined) hEnc = param.enc
       const wKey = C.enc.Hex.parse(hKey)
       const wPlain = C.enc.Hex.parse(hPlain)
       const wIV = C.enc.Hex.parse(param.iv)
@@ -168,13 +167,13 @@ function patchSM4 () {
    * KJUR.crypto.Cipher.decrypt(any, any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41...", enc: "12abcd..." })
    */
   KJUR.crypto.Cipher.decrypt = function (hex, keyObj, algName, param) {
-    if (util.aryval(param, 'enclag') !== undefined) algName = param.encalg
+    if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
 
     if (typeof algName === 'string' && algName.substr(-4) === '-CBC') {
       let hKey = keyObj
       const hEnc = hex
-      if (util.aryval(param, 'key') !== undefined) hKey = param.key
-      // if (aryval(param, 'enc') !== undefined) hEnc = param.enc
+      if (rs.aryval(param, 'key') !== undefined) hKey = param.key
+      // if (rs.aryval(param, 'enc') !== undefined) hEnc = param.enc
       const wKey = C.enc.Hex.parse(hKey)
       const wEnc = C.enc.Hex.parse(hEnc)
       const wIV = C.enc.Hex.parse(param.iv)

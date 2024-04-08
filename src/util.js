@@ -11,18 +11,6 @@ function integerToBytes (i, len) {
   return bytes
 }
 
-function aryval (val, keys, def) {
-  if (typeof val !== 'object') return undefined
-  keys = String(keys).split('.')
-  for (let i = 0; i < keys.length && val; i++) {
-    let key = keys[i]
-    if (key.match(/^[0-9]+$/)) key = parseInt(key)
-    val = val[key]
-  }
-  return val || val === false ? val : def
-}
-
 module.exports = {
-  integerToBytes,
-  aryval
+  integerToBytes
 }

@@ -172,7 +172,7 @@ function adaptSM2 (ecdsa) {
       const point2 = point1.multiply(d)
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
-      const t = sm3.kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
+      const t = kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
       if (!t) {
         throw new Error('SM2: invalid cipher content')
       }
