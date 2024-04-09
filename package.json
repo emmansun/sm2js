@@ -1,9 +1,11 @@
 {
     "name": "gmsm-sm2js",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "description": "Pure Javascript implementation of the SM2 functions",
     "keywords": [
         "sm2",
+        "sm3",
+        "sm4",
         "gmsm"
     ],
     "main": "index.js",

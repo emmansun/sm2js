@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/gmsm-sm2js.svg)](https://badge.fury.io/js/gmsm-sm2js)
 [![NPM Downloads][npm-downloads-image]][npm-url]
 
-**sm2js is a pure Javascript implementation of the GM-Standards SM2 (also support sm3/sm4).**
+**sm2js is a pure Javascript implementation of the GM-Standards SM2 (also support sm3/sm4) based on [jsrsasign](https://github.com/kjur/jsrsasign).**
 
 - sign/verify functions (Passed integration test with ALI KMS)
 - sm2Sign/sm2Verify functions (include uid and curve related parameters in signature)
