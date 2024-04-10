@@ -116,7 +116,7 @@ function patchSM4 () {
   KJUR.crypto.Cipher.encrypt = function (s, keyObj, algName, param) {
     if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
 
-    if (typeof algName === 'string' && algName.substr(-4) === '-CBC') {
+    if (typeof algName === 'string' && algName.endsWith('-CBC')) {
       let hKey = keyObj
       const hPlain = s
       if (rs.aryval(param, 'key') !== undefined) hKey = param.key
@@ -169,7 +169,7 @@ function patchSM4 () {
   KJUR.crypto.Cipher.decrypt = function (hex, keyObj, algName, param) {
     if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
 
-    if (typeof algName === 'string' && algName.substr(-4) === '-CBC') {
+    if (typeof algName === 'string' && algName.endsWith('-CBC')) {
       let hKey = keyObj
       const hEnc = hex
       if (rs.aryval(param, 'key') !== undefined) hKey = param.key
