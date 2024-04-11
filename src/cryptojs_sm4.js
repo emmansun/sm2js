@@ -85,6 +85,60 @@ const SM4 = (CAlgo.SM4 = BlockCipher.extend({
     M[offset + 3] = a
   },
 
+  /**
+   * Encrypt an array of 4 big-endian words.
+   * @param {Array} data The plaintext.
+   * @return {Array} The ciphertext.
+   */
+  encrypt: function (data) {
+    return this._crypt(data, this._keySchedule)
+  },
+
+  /**
+     * Decrypt an array of 4 big-endian words.
+     * @param {Array} data The ciphertext.
+     * @return {Array} The plaintext.
+     */
+  decrypt: function (data) {
+    return this._crypt(data, this._invKeySchedule)
+  },
+
+  /**
+   * Encryption and decryption core.
+   * @param {Array} input Four words to be encrypted or decrypted.
+   * @param keySchedule The scheduled keys.
+   * @return {Array} The four encrypted or decrypted words.
+   * @private
+   */
+  _crypt: function (input, keySchedule) {
+    if (input.length !== 4) {
+      throw new Error('invalid sm4 block size')
+    }
+    let a = input[0]
+    let b = input[1]
+    let c = input[2]
+    let d = input[3]
+
+    a ^= this._t(b ^ c ^ d ^ keySchedule[0])
+    b ^= this._t(c ^ d ^ a ^ keySchedule[1])
+    c ^= this._t(d ^ a ^ b ^ keySchedule[2])
+    d ^= this._t(a ^ b ^ c ^ keySchedule[3])
+
+    for (let i = 4; i < 28; i = i + 4) {
+      a ^= this._precomputedT(b ^ c ^ d ^ keySchedule[i])
+      b ^= this._precomputedT(c ^ d ^ a ^ keySchedule[i + 1])
+      c ^= this._precomputedT(d ^ a ^ b ^ keySchedule[i + 2])
+      d ^= this._precomputedT(a ^ b ^ c ^ keySchedule[i + 3])
+    }
+
+    a ^= this._t(b ^ c ^ d ^ keySchedule[28])
+    b ^= this._t(c ^ d ^ a ^ keySchedule[29])
+    c ^= this._t(d ^ a ^ b ^ keySchedule[30])
+    d ^= this._t(a ^ b ^ c ^ keySchedule[31])
+
+    return [d, c, b, a]
+  },
+
   _sm4L: function (x) {
     const y = (x ^=
       (x << 1) ^

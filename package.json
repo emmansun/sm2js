@@ -17,6 +17,7 @@
         "jsrsasign": "^11.1.0"
     },
     "devDependencies": {
+        "sjcl-with-all": "^1.0.8",
         "standard": "^17.1.0",
         "tape": "^5.7.4"
     },
