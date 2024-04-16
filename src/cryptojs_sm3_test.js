@@ -23,7 +23,7 @@ test('SM3 basic', function (t) {
     ),
     'f4a38489e32b45b6f876e3ac2168ca392362dc8f23459c1d1146fc3dbfb7bc9a'
   )
-  
+
   // From [GBT.32918.2-2016] A.2 Example 2
   t.equal(
     rs.CryptoJS.enc.Hex.stringify(
@@ -35,7 +35,7 @@ test('SM3 basic', function (t) {
     ),
     'b524f552cd82b8b028476e005c377fb19a87e6fc682d48bb5d42e3d9b9effe76'
   )
-  
+
   // From [GBT.32918.2-2016] A.3 Example 1
   t.equal(
     rs.CryptoJS.enc.Hex.stringify(
@@ -47,7 +47,7 @@ test('SM3 basic', function (t) {
     ),
     '26352af82ec19f207bbc6f9474e11e90ce0f7ddace03b27f801817e897a81fd5'
   )
-  
+
   // From [GBT.32918.2-2016] A.3 Example 2
   t.equal(
     rs.CryptoJS.enc.Hex.stringify(
@@ -59,7 +59,7 @@ test('SM3 basic', function (t) {
     ),
     'ad673cbda311417129a9eaa5f9ab1aa1633ad47718a84dfd46c17c6fa0aa3b12'
   )
-  
+
   // GB/T 32918.4-2016 A.3 Example 1
   t.equal(
     rs.CryptoJS.enc.Hex.stringify(
@@ -71,7 +71,7 @@ test('SM3 basic', function (t) {
     ),
     'f0a41f6f48ac723cecfc4b767299a5e25c0641679fbd2d4d20e9ffd5b9f0dab8'
   )
-  
+
   // GB/T 32918.4-2016 A.3 Example 2
   t.equal(
     rs.CryptoJS.enc.Hex.stringify(
@@ -83,6 +83,6 @@ test('SM3 basic', function (t) {
     ),
     '73a48625d3758fa37b3eab80e9cfcaba665e3199ea15a1fa8189d96f579125e4'
   )
-  
+
   t.end()
 })
