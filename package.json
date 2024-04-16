@@ -1,7 +1,7 @@
 {
     "name": "gmsm-sm2js",
-    "version": "0.6.1",
-    "description": "Pure Javascript implementation of the SM2 functions",
+    "version": "0.6.2",
+    "description": "Pure Javascript implementation of the SM2/SM3/SM4 functions based on jsrsasign",
     "keywords": [
         "sm2",
         "sm3",

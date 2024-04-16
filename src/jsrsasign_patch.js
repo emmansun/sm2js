@@ -196,7 +196,10 @@ function patchSM4 () {
   rs.asn1.x509.OID.name2oidList['sm4-CBC'] = '1.2.156.10197.1.104.2'
 }
 
+let patched = false
 function patch () {
+  if (patched) return
+  patched = true
   require('./cryptojs_sm3')
   require('./cryptojs_sm4')
   patchSM3()
