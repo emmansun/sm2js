@@ -94,33 +94,33 @@ function patchSM4 () {
     useNodeSM4 = crypto.getCiphers().indexOf('sm4-cbc') >= 0
   } catch (err) {
     console.log('crypto support is disabled!')
-  }  
-/**
- * encrypt raw string by specified key and algorithm<br/>
- * @name encrypt
- * @memberOf KJUR.crypto.Cipher
- * @function
- * @param {string} s input string to encrypt
- * @param {string} hexadecimal string of symmetric cipher key
- * @param {string} algName short/long algorithm name for encryption/decryption (OPTION)
- * @param {object} param parameters for synchronous cipher such as initial vector (OPTION)
- * @return {string} hexadecimal encrypted string
- * @since jsrsasign 6.2.0 crypto 1.1.10
- *
- * @description
- * This static method encrypts raw string with specified key and algorithm.
- * <br/>
- * NOTE: From jsrsasign 10.9.0, asymmetric cipher ({des-EDE3,sm4-CBC,aes{128,256}}-CBC) is also supported.
- * NOTE2: From jsrsasign 11.0.0, RSA and RSAOAEP encryption/decryption support is removed
- * because of Marvin attack vulnerability.
- *
- * @example
- * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", "aes256-CBC", { iv: "1b3c..." })
- * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", any, { encalg: "aes128-CBC", iv: "1b3c..." })
- * KJUR.crypto.Cipher.encrypt("12abcd...", any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41..." })
- * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", "sm4-CBC", { iv: "1b3c..." })
- * KJUR.crypto.Cipher.encrypt(any, any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41...", enc: "12abcd..." })
- */
+  }
+  /**
+   * encrypt raw string by specified key and algorithm<br/>
+   * @name encrypt
+   * @memberOf KJUR.crypto.Cipher
+   * @function
+   * @param {string} s input string to encrypt
+   * @param {string} hexadecimal string of symmetric cipher key
+   * @param {string} algName short/long algorithm name for encryption/decryption (OPTION)
+   * @param {object} param parameters for synchronous cipher such as initial vector (OPTION)
+   * @return {string} hexadecimal encrypted string
+   * @since jsrsasign 6.2.0 crypto 1.1.10
+   *
+   * @description
+   * This static method encrypts raw string with specified key and algorithm.
+   * <br/>
+   * NOTE: From jsrsasign 10.9.0, asymmetric cipher ({des-EDE3,sm4-CBC,aes{128,256}}-CBC) is also supported.
+   * NOTE2: From jsrsasign 11.0.0, RSA and RSAOAEP encryption/decryption support is removed
+   * because of Marvin attack vulnerability.
+   *
+   * @example
+   * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", "aes256-CBC", { iv: "1b3c..." })
+   * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", any, { encalg: "aes128-CBC", iv: "1b3c..." })
+   * KJUR.crypto.Cipher.encrypt("12abcd...", any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41..." })
+   * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", "sm4-CBC", { iv: "1b3c..." })
+   * KJUR.crypto.Cipher.encrypt(any, any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41...", enc: "12abcd..." })
+   */
   KJUR.crypto.Cipher.encrypt = function (s, keyObj, algName, param) {
     if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
 
@@ -147,8 +147,8 @@ function patchSM4 () {
           default:
             throw new Error('unsupported algorithm: ' + algName)
         }
-        const cipher = crypto.createCipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'));
-        return cipher.update(hPlain, 'hex', 'hex') + cipher.final('hex');
+        const cipher = crypto.createCipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'))
+        return cipher.update(hPlain, 'hex', 'hex') + cipher.final('hex')
       }
       const wKey = C.enc.Hex.parse(hKey)
       const wPlain = C.enc.Hex.parse(hPlain)
@@ -221,8 +221,8 @@ function patchSM4 () {
           default:
             throw new Error('unsupported algorithm: ' + algName)
         }
-        const cipher = crypto.createDecipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'));
-        return cipher.update(hEnc, 'hex', 'hex') + cipher.final('hex');
+        const cipher = crypto.createDecipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'))
+        return cipher.update(hEnc, 'hex', 'hex') + cipher.final('hex')
       }
       const wKey = C.enc.Hex.parse(hKey)
       const wEnc = C.enc.Hex.parse(hEnc)
