@@ -87,6 +87,14 @@ function patchSM3 () {
 }
 
 function patchSM4 () {
+  let crypto
+  let useNodeSM4 = false
+  try {
+    crypto = require('crypto')
+    useNodeSM4 = crypto.getCiphers().indexOf('sm4-cbc') >= 0
+  } catch (err) {
+    console.log('crypto support is disabled!')
+  }  
 /**
  * encrypt raw string by specified key and algorithm<br/>
  * @name encrypt
@@ -121,6 +129,27 @@ function patchSM4 () {
       const hPlain = s
       if (rs.aryval(param, 'key') !== undefined) hKey = param.key
       // if (rs.aryval(param, 'enc') !== undefined) hEnc = param.enc
+      if (useNodeSM4) {
+        let cipherMode
+        switch (algName) {
+          case 'sm4-CBC':
+            cipherMode = 'sm4-cbc'
+            break
+          case 'des-EDE3-CBC':
+            cipherMode = 'des-ede3-cbc'
+            break
+          case 'aes128-CBC':
+            cipherMode = 'aes-128-cbc'
+            break
+          case 'aes256-CBC':
+            cipherMode = 'aes-256-cbc'
+            break
+          default:
+            throw new Error('unsupported algorithm: ' + algName)
+        }
+        const cipher = crypto.createCipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'));
+        return cipher.update(hPlain, 'hex', 'hex') + cipher.final('hex');
+      }
       const wKey = C.enc.Hex.parse(hKey)
       const wPlain = C.enc.Hex.parse(hPlain)
       const wIV = C.enc.Hex.parse(param.iv)
@@ -174,6 +203,27 @@ function patchSM4 () {
       const hEnc = hex
       if (rs.aryval(param, 'key') !== undefined) hKey = param.key
       // if (rs.aryval(param, 'enc') !== undefined) hEnc = param.enc
+      if (useNodeSM4) {
+        let cipherMode
+        switch (algName) {
+          case 'sm4-CBC':
+            cipherMode = 'sm4-cbc'
+            break
+          case 'des-EDE3-CBC':
+            cipherMode = 'des-ede3-cbc'
+            break
+          case 'aes128-CBC':
+            cipherMode = 'aes-128-cbc'
+            break
+          case 'aes256-CBC':
+            cipherMode = 'aes-256-cbc'
+            break
+          default:
+            throw new Error('unsupported algorithm: ' + algName)
+        }
+        const cipher = crypto.createDecipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'));
+        return cipher.update(hEnc, 'hex', 'hex') + cipher.final('hex');
+      }
       const wKey = C.enc.Hex.parse(hKey)
       const wEnc = C.enc.Hex.parse(hEnc)
       const wIV = C.enc.Hex.parse(param.iv)
