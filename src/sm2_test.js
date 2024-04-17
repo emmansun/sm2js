@@ -8,6 +8,7 @@ MFkwEwYHKoZIzj0CAQYIKoEcz1UBgi0DQgAERrsLH25zLm2LIo6tivZM9afLprSX
 6TCKAmQJArAO7VOtZyW4PQwfaTsUIF7IXEFG4iI8bNuTQwMykUzLu2ypEA==
 -----END PUBLIC KEY-----
 `
+const sm2PKIXPublicKeyHex = '3059301306072a8648ce3d020106082a811ccf5501822d03420004ef7db908af06082ef4a30e0ec28623371c106a53296a7b0e1a9b5717bd9cb81beb20d094aba685fd0f6a7ecc007ccf797ba634476326723b303d9dec873f440b'
 
 const signatureHex = '30450220757984e0a063394ee0792b52172dd4273c05e2a66d734ff804a37b9ac639c098022100d9739a8d7a37fc88a1b4210998da489ad5b0dee1c8cb9097e532318aded5d204'
 
@@ -71,6 +72,10 @@ MIGHAgEAMBMGByqGSM49AgEGCCqBHM9VAYItBG0wawIBAQQgbFoKCy7tPL7D5PEl
 K/4OKMUEoca/GZnuuwr57w+ObIWhRANCAASDVuZCpA69GNKbo1MvvZ87vujwJ8P2
 85pbovhwNp+ZiJgfXv5V0cXN9sDvKwcIR6FPf99CcqjfCcRC8wWK+Uuh
 -----END PRIVATE KEY-----`
+
+const pkcs8SM2P256PrivateKeyHex = '308187020100301306072a8648ce3d020106082a811ccf5501822d046d306b0201010420b26da57ba53004ddcd387ad46a361b51b308481f2327d47fb10c5fb3a8c86b92a144034200040d5365bfdbdc564c5b0eda0a85ddbd753821a709de90efe0666ba2544766acf1100ac0484d166842011da5cd6139e53dedb99ce37cea9edf4941628066e861bf'
+
+const sec1SM2PrivateKeyHex = '30770201010420857dd87970aab4328dad891c781e3b270742aa9cf5d3d3764efe77f6c3d6e33aa00a06082a811ccf5501822da14403420004ced963a5705a0490ff13dde893cbda6de61f41fcaf917a5b4007d30cdec46426bc39b9c18d15b2a68a64dc333f262e600b675856285b42296f24741ee6f562a0'
 
 test('SM2 P-256 encrypt/decrypt local', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
@@ -216,5 +221,68 @@ test('Parse PKCS8 unencrypted SM2 private key', function (t) {
   t.equal(key.curveName, 'sm2p256v1')
   t.equal(key.prvKeyHex, '6c5a0a0b2eed3cbec3e4f1252bfe0e28c504a1c6bf1999eebb0af9ef0f8e6c85')
   t.equal(key.pubKeyHex, '048356e642a40ebd18d29ba3532fbd9f3bbee8f027c3f6f39a5ba2f870369f9988981f5efe55d1c5cdf6c0ef2b070847a14f7fdf4272a8df09c442f3058af94ba1')
+  t.end()
+})
+
+test('Parse PKCS8 unencrypted SM2 private key with Signature', function (t) {
+  const sig1 = sm2.createSM2Signature()
+  sig1.init(sm2PrivateKeyPlainPKCS8)
+
+  const hSig = sig1.sm2Sign('emmansun')
+  console.log('hSig=' + hSig)
+
+  const sig2 = sm2.createSM2Signature()
+  sig2.init({ curve: sm2.getCurveName(), xy: sig1.prvKey.pubKeyHex })
+  t.true(sig2.sm2Verify(hSig, 'emmansun'))
+
+  t.end()
+})
+
+test('Parse PKCS8 encrypted SM2 private key with Signature', function (t) {
+  const sig1 = sm2.createSM2Signature()
+  sig1.init(sm2PrivateKeyEncryptedPKCS8, 'Password1')
+
+  const hSig = sig1.sm2Sign('emmansun')
+  console.log('hSig=' + hSig)
+
+  const sig2 = sm2.createSM2Signature()
+  sig2.init({ curve: sm2.getCurveName(), xy: sig1.prvKey.pubKeyHex })
+  t.true(sig2.sm2Verify(hSig, 'emmansun'))
+
+  t.end()
+})
+
+test('Parse PKCS8 unencrypted SM2 private key (hex) with Signature', function (t) {
+  const sig1 = sm2.createSM2Signature()
+  sig1.init(pkcs8SM2P256PrivateKeyHex, undefined, 'pkcs8prv')
+
+  const hSig = sig1.sm2Sign('emmansun')
+  console.log('hSig=' + hSig)
+
+  const sig2 = sm2.createSM2Signature()
+  sig2.init({ curve: sm2.getCurveName(), xy: sig1.prvKey.pubKeyHex })
+  t.true(sig2.sm2Verify(hSig, 'emmansun'))
+
+  t.end()
+})
+
+test('Parse SEC1 SM2 private key (hex) with Signature', function (t) {
+  const sig1 = sm2.createSM2Signature()
+  sig1.init(sec1SM2PrivateKeyHex, undefined, 'pkcs5prv')
+
+  const hSig = sig1.sm2Sign('emmansun')
+  console.log('hSig=' + hSig)
+
+  const sig2 = sm2.createSM2Signature()
+  sig2.init({ curve: sm2.getCurveName(), xy: sig1.prvKey.pubKeyHex })
+  t.true(sig2.sm2Verify(hSig, 'emmansun'))
+
+  t.end()
+})
+
+test('Parse SM2 PKIX public key (hex) with Signature', function (t) {
+  const sig1 = sm2.createSM2Signature()
+  sig1.init(sm2PKIXPublicKeyHex, undefined, 'pkcs8pub')
+  t.equals(sig1.pubKey.pubKeyHex, '04ef7db908af06082ef4a30e0ec28623371c106a53296a7b0e1a9b5717bd9cb81beb20d094aba685fd0f6a7ecc007ccf797ba634476326723b303d9dec873f440b')
   t.end()
 })

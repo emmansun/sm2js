@@ -369,17 +369,13 @@ class Signature {
     }
   }
 
-  init (keyparam, pass) {
+  init (keyparam, pass, hextype) {
     if (this.fallbackSig) {
       return this.fallbackSig.init(keyparam, pass)
     }
     let keyObj = null
     try {
-      if (pass === undefined) {
-        keyObj = rs.KEYUTIL.getKey(keyparam)
-      } else {
-        keyObj = rs.KEYUTIL.getKey(keyparam, pass)
-      }
+      keyObj = rs.KEYUTIL.getKey(keyparam, pass, hextype)
     } catch (ex) {
       throw new Error('init failed:' + ex)
     }
