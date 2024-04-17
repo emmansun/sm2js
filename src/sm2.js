@@ -182,8 +182,18 @@ function adaptSM2 (ecdsa) {
       return sm3.toHex(c2)
     }
 
-    ecdsa.signHex = function (hashHex, privHex) {
-      const d = new rs.BigInteger(privHex, 16)
+    ecdsa.signWithMessageHash = function (hashHex) {
+      if (!this._d) {
+        this._d = new rs.BigInteger(this.prvKeyHex, 16)
+      }
+      if (!this._dp1Inv) {
+        const n = this.ecparams.n
+        this._dp1Inv = this._d.add(rs.BigInteger.ONE).modInverse(n)
+      }
+      return this._signHexInternal(hashHex, this._d, this._dp1Inv)
+    }
+
+    ecdsa._signHexInternal = function (hashHex, d, dp1Inv) {
       const n = this.ecparams.n
       const G = this.ecparams.G
       // message hash is truncated with curve key length (FIPS 186-4 6.4)
@@ -196,10 +206,17 @@ function adaptSM2 (ecdsa) {
           r = Q.getX().toBigInteger().add(e).mod(n)
         } while (r.signum() === 0 || r.add(k).compareTo(n) === 0)
         s = k.subtract(d.multiply(r))
-        const dp1Inv = d.add(rs.BigInteger.ONE).modInverse(n)
+        if (!dp1Inv) {
+          dp1Inv = d.add(rs.BigInteger.ONE).modInverse(n)
+        }
         s = s.multiply(dp1Inv).mod(n)
       } while (s.signum() === 0)
       return rs.ECDSA.biRSSigToASN1Sig(r, s)
+    }
+
+    ecdsa.signHex = function (hashHex, privHex) {
+      const d = new rs.BigInteger(privHex, 16)
+      return this._signHexInternal(hashHex, d)
     }
 
     ecdsa.verifyRaw = function (e, r, s, Q) {
@@ -314,7 +331,9 @@ class MessageDigest {
       this.md.reset()
       return sm3.toHex(hash)
     } else {
-      return this.md.digest('hex')
+      const h = this.md.digest('hex')
+      this.md = crypto.createHash('sm3')
+      return h
     }
   }
 

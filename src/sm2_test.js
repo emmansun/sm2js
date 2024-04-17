@@ -130,10 +130,13 @@ test('SM2 P-256 sm2 specific sign/verify', function (t) {
   sig1.init({ curve: sm2.getCurveName(), d: keypair.ecprvhex })
 
   const hSig = sig1.sm2Sign('emmansun')
+  const hSig1 = sig1.sm2Sign('emmansun 1')
   console.log('hSig=' + hSig)
+  console.log('hSig1=' + hSig1)
   const sig2 = sm2.createSM2Signature()
   sig2.init({ curve: sm2.getCurveName(), xy: keypair.ecpubhex })
   t.true(sig2.sm2Verify(hSig, 'emmansun'))
+  t.true(sig2.sm2Verify(hSig1, 'emmansun 1'))
   t.end()
 })
 
