@@ -465,6 +465,16 @@ class Signature {
     return this.sign()
   }
 
+  sm2Hash (data, uid) {
+    if (this.pubKey) {
+      this.update(this.pubKey.calculateZA(uid))
+    } else {
+      this.update(this.prvKey.calculateZA(uid))
+    }
+    this.update(data)
+    return this.md.digest()
+  }
+
   sm2Sign (data, uid) {
     if (!data) {
       throw new Error('SM2: please do not call update before sign')
@@ -472,10 +482,7 @@ class Signature {
     if (this.fallbackSig || !(this.prvKey instanceof rs.ECDSA)) {
       throw new Error('SM2: no valid SM2 private key')
     }
-    this.update(this.prvKey.calculateZA(uid))
-    this.update(data)
-    this.sHashHex = this.md.digest()
-    return this.signWithMessageHash(this.sHashHex)
+    return this.signWithMessageHash(this.sm2Hash(data, uid))
   }
 
   verifyWithMessageHash (sHashHex, hSigVal) {
@@ -506,8 +513,7 @@ class Signature {
     if (this.fallbackSig) {
       return this.fallbackSig.verify(hSigVal)
     }
-    this.sHashHex = this.md.digest()
-    return this.verifyWithMessageHash(this.sHashHex, hSigVal)
+    return this.verifyWithMessageHash(this.md.digest(), hSigVal)
   }
 
   sm2Verify (hSigVal, data, uid) {
@@ -517,10 +523,7 @@ class Signature {
     if (this.fallbackSig || !(this.pubKey instanceof rs.ECDSA)) {
       throw new Error('SM2: no valid SM2 public key')
     }
-    this.update(this.pubKey.calculateZA(uid))
-    this.update(data)
-    this.sHashHex = this.md.digest()
-    return this.pubKey.verifyWithMessageHash(this.sHashHex, hSigVal)
+    return this.pubKey.verifyWithMessageHash(this.sm2Hash(data, uid), hSigVal)
   }
 }
 
