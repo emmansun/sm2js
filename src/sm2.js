@@ -311,7 +311,7 @@ class MessageDigest {
   /**
    * Updates the hash content with the given data
    * @param {Uint8Array} data The Uint8Array to be hashed
-   */  
+   */
   update (data) {
     if (useNodeSM3) {
       this.md.update(data)
