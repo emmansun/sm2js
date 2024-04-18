@@ -110,7 +110,7 @@ function adaptSM2 (ecdsa) {
       const n = this.ecparams.n
       const G = this.ecparams.G
       const dataLen = data.length
-      let md = new MessageDigest()
+      const md = new MessageDigest()
       let count = 0
       if (Q.isInfinity()) {
         throw new Error('sm2: invalid public key')
@@ -124,7 +124,6 @@ function adaptSM2 (ecdsa) {
           if (count++ > MAX_RETRY) {
             throw new Error('sm2: A5, failed to calculate valid t')
           }
-          md = new MessageDigest()
           continue
         }
         for (let i = 0; i < dataLen; i++) {
@@ -290,7 +289,7 @@ function kdf (data, len) {
   const countBytes = new Uint8Array(4)
   let ct = 1
   const k = new Uint8Array(len + SM3_SIZE - 1)
-  let md = new MessageDigest()
+  const md = new MessageDigest()
   for (let i = 0; i < limit; i++) {
     countBytes[0] = (ct >>> 24) & 0xff
     countBytes[1] = (ct >>> 16) & 0xff
@@ -303,7 +302,6 @@ function kdf (data, len) {
       k[i * SM3_SIZE + j] = hash[j]
     }
     ct++
-    md = new MessageDigest()
   }
   for (let i = 0; i < len; i++) {
     if (k[i] !== 0) {
@@ -347,7 +345,9 @@ class MessageDigest {
 
   digestRaw () {
     if (useNodeSM3) {
-      return this.md.digest()
+      const h = this.md.digest()
+      this.md = crypto.createHash('sm3')
+      return h
     } else {
       const hash = this.md.finalize()
       return rs.CryptoJS.enc.Uint8Array.stringify(hash)
