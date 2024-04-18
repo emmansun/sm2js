@@ -78,8 +78,8 @@ const sec1SM2PrivateKeyHex = '30770201010420857dd87970aab4328dad891c781e3b270742
 
 test('SM2 P-256 encrypt/decrypt local', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
-  const plainText = 'emmansun'
-  const expected = '656d6d616e73756e'
+  const plainText = 'send reinforcements, we\'re going to advance'
+  const expected = '73656e64207265696e666f7263656d656e74732c20776527726520676f696e6720746f20616476616e6365'
   const keypair = ec.generateKeyPairHex()
 
   const ciphertext = sm2.encrypt(keypair.ecpubhex, plainText)
@@ -97,8 +97,8 @@ test('SM2 P-256 encrypt/decrypt local', function (t) {
 
 test('SM2 P-256 encrypt, output hex asn.1 ciphertext', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
-  const plainText = 'emmansun'
-  const expected = '656d6d616e73756e'
+  const plainText = 'send reinforcements, we\'re going to advance'
+  const expected = '73656e64207265696e666f7263656d656e74732c20776527726520676f696e6720746f20616476616e6365'
   const keypair = ec.generateKeyPairHex()
   const ciphertext = sm2.encrypt(keypair.ecpubhex, plainText, sm2.asn1EncrypterOptions())
   const tag = ciphertext.substr(0, 2)

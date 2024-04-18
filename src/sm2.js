@@ -73,7 +73,7 @@ if (!rs.BigInteger.prototype.toByteArrayUnsigned) {
 class EncrypterOptions {
   constructor (encodingFormat) {
     if (encodingFormat !== CIPHERTEXT_ENCODING_PLAIN && encodingFormat !== CIPHERTEXT_ENCODING_ASN1) {
-      throw new Error('SM2: unsupport ciphertext encoding format')
+      throw new Error('sm2: unsupport ciphertext encoding format')
     }
     this.encodingFormat = encodingFormat
   }
@@ -113,7 +113,7 @@ function adaptSM2 (ecdsa) {
       let md = new MessageDigest()
       let count = 0
       if (Q.isInfinity()) {
-        throw new Error('SM2: invalid public key')
+        throw new Error('sm2: invalid public key')
       }
       do {
         const k = this.getBigRandom(n)
@@ -122,7 +122,7 @@ function adaptSM2 (ecdsa) {
         const t = kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
         if (!t) {
           if (count++ > MAX_RETRY) {
-            throw new Error('SM2: A5, failed to calculate valid t')
+            throw new Error('sm2: A5, failed to calculate valid t')
           }
           md = new MessageDigest()
           continue
@@ -163,10 +163,10 @@ function adaptSM2 (ecdsa) {
       const dataLen = data.length
 
       if (data[0] !== UNCOMPRESSED) {
-        throw new Error('SM2: unsupport point marshal mode')
+        throw new Error('sm2: unsupport point marshal mode')
       }
       if (dataLen < 97) {
-        throw new Error('SM2: invalid cipher content length')
+        throw new Error('sm2: invalid cipher content length')
       }
       const point1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
       const point2 = point1.multiply(d)
@@ -174,12 +174,25 @@ function adaptSM2 (ecdsa) {
       const c3 = data.subarray(65, 97)
       const t = kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
       if (!t) {
-        throw new Error('SM2: invalid cipher content')
+        throw new Error('sm2: invalid cipher content')
       }
-      for (let i = 0; i < c3.length; i++) {
-        c2[i] ^= t[i]
+      for (let i = 0; i < c2.length; i++) {
+        t[i] ^= c2[i]
       }
-      return Buffer.from(c2).toString('hex')
+      const md = new MessageDigest()
+      md.update(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
+      md.update(t)
+      md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
+      const hash = md.digestRaw()
+      let xor
+      for (let i = 0; i < hash.length; i++) {
+        xor = hash[i] ^ c3[i]
+      }
+      if (xor !== 0) {
+        throw new Error('sm2: decryption error')
+      }
+
+      return Buffer.from(t).toString('hex')
     }
 
     ecdsa.signWithMessageHash = function (hashHex) {
@@ -248,7 +261,7 @@ function adaptSM2 (ecdsa) {
       uid = util.normalizeInput(uid)
       const uidLen = uid.length
       if (uidLen >= 0x2000) {
-        throw new Error('SM2: the uid is too long')
+        throw new Error('sm2: the uid is too long')
       }
       const entla = uidLen << 3
       const md = new MessageDigest()
@@ -491,10 +504,10 @@ class Signature {
 
   sm2Sign (data, uid) {
     if (!data) {
-      throw new Error('SM2: please do not call update before sign')
+      throw new Error('sm2: please do not call update before sign')
     }
     if (this.fallbackSig || !(this.prvKey instanceof rs.ECDSA)) {
-      throw new Error('SM2: no valid SM2 private key')
+      throw new Error('sm2: no valid SM2 private key')
     }
     return this.signWithMessageHash(this.sm2Hash(data, uid))
   }
@@ -532,10 +545,10 @@ class Signature {
 
   sm2Verify (hSigVal, data, uid) {
     if (!data) {
-      throw new Error('SM2: please do not call update before verify')
+      throw new Error('sm2: please do not call update before verify')
     }
     if (this.fallbackSig || !(this.pubKey instanceof rs.ECDSA)) {
-      throw new Error('SM2: no valid SM2 public key')
+      throw new Error('sm2: no valid SM2 public key')
     }
     return this.pubKey.verifyWithMessageHash(this.sm2Hash(data, uid), hSigVal)
   }
@@ -557,7 +570,7 @@ function encrypt (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
     })
   }
   if (!(pubkey instanceof rs.ECDSA) || pubkey.curveName !== SM2_CURVE_NAME) {
-    throw new Error('SM2: invalid ec public key')
+    throw new Error('sm2: invalid ec public key')
   }
   adaptSM2(pubkey)
   return pubkey.encrypt(data, opts)
@@ -574,10 +587,10 @@ function plainCiphertext2ASN1 (data) {
   const dataLen = data.length
 
   if (data[0] !== UNCOMPRESSED) {
-    throw new Error('SM2: unsupport point marshal mode')
+    throw new Error('sm2: unsupport point marshal mode')
   }
   if (dataLen < 97) {
-    throw new Error('SM2: invalid cipher content')
+    throw new Error('sm2: invalid cipher content')
   }
   const point1 = rs.ECPointFp.decodeFrom(rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve, Array.from(data.subarray(0, 65)))
   const c2 = data.subarray(97)
@@ -597,7 +610,7 @@ function _getASN1Values (hexASN1Data, aIdx, aTag) {
     const idx = aIdx[i]
     const tag = hexASN1Data.substr(idx, 2)
     if (tag !== aTag[i]) {
-      throw new Error('SM2: invalid asn1 format ciphertext, want ' + aTag[i] + ', get ' + tag)
+      throw new Error('sm2: invalid asn1 format ciphertext, want ' + aTag[i] + ', get ' + tag)
     }
     aValue.push(rs.ASN1HEX.getV(hexASN1Data, idx))
   }
@@ -612,16 +625,16 @@ function _getASN1Values (hexASN1Data, aIdx, aTag) {
  */
 function asn1Ciphertext2Plain (hexASN1Data) {
   if (!hexASN1Data || !rs.ASN1HEX.isASN1HEX(hexASN1Data)) {
-    throw new Error('SM2: invalid asn1 format ciphertext')
+    throw new Error('sm2: invalid asn1 format ciphertext')
   }
   const idx = 0
   const tag = hexASN1Data.substr(idx, 2)
   if (tag !== '30') {
-    throw new Error('SM2: invalid asn1 format ciphertext')
+    throw new Error('sm2: invalid asn1 format ciphertext')
   }
   const aIdx = rs.ASN1HEX.getChildIdx(hexASN1Data, idx)
   if (aIdx.length !== 4) {
-    throw new Error('SM2: invalid asn1 format ciphertext')
+    throw new Error('sm2: invalid asn1 format ciphertext')
   }
   const aValue = _getASN1Values(hexASN1Data, aIdx, ['02', '02', '04', '04'])
   const curve = rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve
@@ -661,7 +674,7 @@ function decrypt (prvKey, data) {
     })
   }
   if (!(prvKey instanceof rs.ECDSA) || prvKey.curveName !== SM2_CURVE_NAME) {
-    throw new Error('SM2: invalid ec public key')
+    throw new Error('sm2: invalid ec public key')
   }
   adaptSM2(prvKey)
   return prvKey.decrypt(data)
@@ -676,11 +689,11 @@ function decrypt (prvKey, data) {
  */
 function decryptHex (prvKey, data) {
   if (typeof data !== 'string' || data.length < 98 * 2) {
-    throw new Error('SM2: invalid chiphertext length')
+    throw new Error('sm2: invalid chiphertext length')
   }
   const tag = data.substr(0, 2)
   if (tag !== '30' && tag !== '04') {
-    throw new Error(`SM2: invalid ciphertext encoding format ${tag}`)
+    throw new Error(`sm2: invalid ciphertext encoding format ${tag}`)
   }
   if (tag === '30') {
     data = asn1Ciphertext2Plain(data)
