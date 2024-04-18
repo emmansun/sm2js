@@ -1,6 +1,5 @@
 const test = require('tape')
 const rs = require('jsrsasign')
-const sm3 = require('gmsm-sm3js')
 const sm2 = require('./sm2')
 
 const publicKeyPemFromAliKmsForSign = `-----BEGIN PUBLIC KEY-----
@@ -172,7 +171,7 @@ test('SM2 parse public key pem, verify signature, both from ali KMS', function (
 test('SM2 calculate ZA', function (t) {
   const sig = sm2.createSM2Signature()
   sig.init(publicKeyPemFromAliKmsForSign)
-  const za = sm3.toHex(sig.pubKey.calculateZA())
+  const za = Buffer.from(sig.pubKey.calculateZA()).toString('hex')
   t.equal(za, '17e7fc071f1418200aeead3c5118a2f18381431d92b808a3bd1ba2d8270c2914')
   t.end()
 })

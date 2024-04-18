@@ -1,6 +1,7 @@
 const rs = require('jsrsasign')
 const KJUR = rs.KJUR
 const C = rs.CryptoJS
+const CEnc = C.enc
 
 function parsePBES2 (hP8Prv) {
   const pASN = rs.ASN1HEX.parse(hP8Prv)
@@ -246,10 +247,34 @@ function patchSM4 () {
   rs.asn1.x509.OID.name2oidList['sm4-CBC'] = '1.2.156.10197.1.104.2'
 }
 
+function patchEncUint8Array () {
+  CEnc.Uint8Array = CEnc.Uint8Array || {
+    stringify: function (wordArray) {
+      const bytes = []
+      const words = wordArray.words
+      const sigBytes = wordArray.sigBytes
+      for (let i = 0; i < sigBytes; i++) {
+        bytes.push((words[i >>> 2] >>> (24 - (i % 4) * 8)) & 0xff)
+      }
+      return new Uint8Array(bytes)
+    },
+
+    parse: function (uint8Array) {
+      const words = []
+      const dataLen = uint8Array.length
+      for (let i = 0; i < uint8Array.length; i++) {
+        words[i >>> 2] |= uint8Array[i] << (24 - (i % 4) * 8)
+      }
+      return C.lib.WordArray.create(words, dataLen)
+    }
+  }
+}
+
 let patched = false
 function patch () {
   if (patched) return
   patched = true
+  patchEncUint8Array()
   require('./cryptojs_sm3')
   require('./cryptojs_sm4')
   patchSM3()

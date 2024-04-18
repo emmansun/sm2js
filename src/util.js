@@ -11,6 +11,22 @@ function integerToBytes (i, len) {
   return bytes
 }
 
+// For convenience, let people hash a string, not just a Uint8Array
+function normalizeInput (input) {
+  let ret
+  if (input instanceof Uint8Array) {
+    ret = input
+  } else if (input instanceof Buffer) {
+    ret = new Uint8Array(input)
+  } else if (typeof input === 'string') {
+    ret = new Uint8Array(Buffer.from(input, 'utf8'))
+  } else {
+    throw new Error('Input must be an string, Buffer or Uint8Array')
+  }
+  return ret
+}
+
 module.exports = {
-  integerToBytes
+  integerToBytes,
+  normalizeInput
 }

@@ -1,6 +1,5 @@
 const rs = require('jsrsasign')
 require('./jsrsasign_patch').patch()
-const sm3 = require('gmsm-sm3js')
 const util = require('./util')
 
 let crypto
@@ -29,6 +28,7 @@ const SM2_CURVE_PARAM_B = '28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCB
 const SM2_CURVE_PARAM_N = 'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFF7203DF6B21C6052B53BBF40939D54123'
 const SM2_CURVE_PARAM_GX = '32C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7'
 const SM2_CURVE_PARAM_GY = 'BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0'
+const SM2_CURVE_PARAMS_FOR_ZA = 'FFFFFFFEFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000FFFFFFFFFFFFFFFC28E9FA9E9D9F5E344D5A9E4BCF6509A7F39789F515AB8F92DDBCBD414D940E9332C4AE2C1F1981195F9904466A39C9948FE30BBFF2660BE1715A4589334C74C7BC3736A2F4F6779C59BDCEE36B692153D0A9877CC62A474002DF32E52139F0A0'
 
 const CIPHERTEXT_ENCODING_PLAIN = 0
 const CIPHERTEXT_ENCODING_ASN1 = 1
@@ -99,14 +99,14 @@ function adaptSM2 (ecdsa) {
     }
 
     ecdsa.encryptHex = function (dataHex, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
-      return this.encrypt(sm3.fromHex(dataHex), opts)
+      return this.encrypt(new Uint8Array(Buffer.from(dataHex, 'hex')), opts)
     }
 
     ecdsa.encryptRaw = function (data, Q, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       if (!opts || !(opts instanceof EncrypterOptions)) {
         opts = DEFAULT_SM2_ENCRYPT_OPTIONS
       }
-      data = sm3.normalizeInput(data)
+      data = util.normalizeInput(data)
       const n = this.ecparams.n
       const G = this.ecparams.G
       const dataLen = data.length
@@ -135,12 +135,12 @@ function adaptSM2 (ecdsa) {
         md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
         const hash = md.digestRaw()
         if (opts.getEncodingFormat() === CIPHERTEXT_ENCODING_PLAIN) {
-          return sm3.toHex(new Uint8Array(point1.getEncoded(false))) + sm3.toHex(hash) + sm3.toHex(t)
+          return Buffer.from(point1.getEncoded(false)).toString('hex') + Buffer.from(hash).toString('hex') + Buffer.from(t).toString('hex')
         }
         const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
         const derY = new rs.asn1.DERInteger({ bigint: point1.getY().toBigInteger() })
-        const derC3 = new rs.asn1.DEROctetString({ hex: sm3.toHex(hash) })
-        const derC2 = new rs.asn1.DEROctetString({ hex: sm3.toHex(t) })
+        const derC3 = new rs.asn1.DEROctetString({ hex: Buffer.from(hash).toString('hex') })
+        const derC2 = new rs.asn1.DEROctetString({ hex: Buffer.from(t).toString('hex') })
         const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
         return derSeq.getEncodedHex()
       } while (true)
@@ -155,11 +155,11 @@ function adaptSM2 (ecdsa) {
     }
 
     ecdsa.decryptHex = function (dataHex) {
-      return this.decrypt(sm3.fromHex(dataHex))
+      return this.decrypt(new Uint8Array(Buffer.from(dataHex, 'hex')))
     }
 
     ecdsa.decryptRaw = function (data, d) {
-      data = sm3.normalizeInput(data)
+      data = util.normalizeInput(data)
       const dataLen = data.length
 
       if (data[0] !== UNCOMPRESSED) {
@@ -179,7 +179,7 @@ function adaptSM2 (ecdsa) {
       for (let i = 0; i < c3.length; i++) {
         c2[i] ^= t[i]
       }
-      return sm3.toHex(c2)
+      return Buffer.from(c2).toString('hex')
     }
 
     ecdsa.signWithMessageHash = function (hashHex) {
@@ -245,7 +245,7 @@ function adaptSM2 (ecdsa) {
       if (!uid) {
         uid = DEFAULT_UID
       }
-      uid = sm3.normalizeInput(uid)
+      uid = util.normalizeInput(uid)
       const uidLen = uid.length
       if (uidLen >= 0x2000) {
         throw new Error('SM2: the uid is too long')
@@ -254,10 +254,7 @@ function adaptSM2 (ecdsa) {
       const md = new MessageDigest()
       md.update(new Uint8Array([0xff & (entla >>> 8), 0xff & entla]))
       md.update(uid)
-      md.update(sm3.fromHex(SM2_CURVE_PARAM_A)) // a
-      md.update(sm3.fromHex(SM2_CURVE_PARAM_B)) // b
-      md.update(sm3.fromHex(SM2_CURVE_PARAM_GX)) // gx
-      md.update(sm3.fromHex(SM2_CURVE_PARAM_GY)) // gy
+      md.update(new Uint8Array(Buffer.from(SM2_CURVE_PARAMS_FOR_ZA, 'hex'))) // a||b||gx||gy
       let Q
       if (this.pubKeyHex) {
         Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
@@ -265,6 +262,7 @@ function adaptSM2 (ecdsa) {
         const d = new rs.BigInteger(this.prvKeyHex, 16)
         const G = this.ecparams.G
         Q = G.multiply(d)
+        this.pubKeyHex = Buffer.from(Q.getEncoded()).toString('hex')
       }
       md.update(new Uint8Array(util.integerToBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
       md.update(new Uint8Array(util.integerToBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
@@ -274,7 +272,7 @@ function adaptSM2 (ecdsa) {
 }
 
 function kdf (data, len) {
-  data = sm3.normalizeInput(data)
+  data = util.normalizeInput(data)
   const limit = (len + SM3_SIZE - 1) >>> SM3_SIZE_BIT_SIZE
   const countBytes = new Uint8Array(4)
   let ct = 1
@@ -306,20 +304,41 @@ class MessageDigest {
     if (useNodeSM3) {
       this.md = crypto.createHash('sm3')
     } else {
-      this.md = sm3.create()
+      this.md = rs.KJUR.crypto.Util.CRYPTOJSMESSAGEDIGESTNAME.sm3.create()
     }
   }
 
+  /**
+   * Updates the hash content with the given data
+   * @param {Uint8Array} data The Uint8Array to be hashed
+   */  
   update (data) {
-    this.md.update(data)
+    if (useNodeSM3) {
+      this.md.update(data)
+    } else {
+      this.md.update(rs.CryptoJS.enc.Uint8Array.parse(data))
+    }
   }
 
+  /**
+   * Updates the hash content with the given hex data
+   * @param {Uint8Array} hex The hex data
+   */
   updateHex (hex) {
-    this.md.update(sm3.fromHex(hex))
+    if (useNodeSM3) {
+      this.md.update(new Uint8Array(Buffer.from(hex, 'hex')))
+    } else {
+      this.md.update(rs.CryptoJS.enc.Hex.parse(hex))
+    }
   }
 
   digestRaw () {
-    return useNodeSM3 ? this.md.digest() : this.md.finalize()
+    if (useNodeSM3) {
+      return this.md.digest()
+    } else {
+      const hash = this.md.finalize()
+      return rs.CryptoJS.enc.Uint8Array.stringify(hash)
+    }
   }
 
   digest (data) {
@@ -328,8 +347,7 @@ class MessageDigest {
     }
     if (!useNodeSM3) {
       const hash = this.md.finalize()
-      this.md.reset()
-      return sm3.toHex(hash)
+      return hash.toString(rs.CryptoJS.enc.Hex)
     } else {
       const h = this.md.digest('hex')
       this.md = crypto.createHash('sm3')
@@ -552,7 +570,7 @@ function encrypt (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
  * @returns hex ans.1 format ciphertext
  */
 function plainCiphertext2ASN1 (data) {
-  data = sm3.fromHex(data)
+  data = new Uint8Array(Buffer.from(data, 'hex'))
   const dataLen = data.length
 
   if (data[0] !== UNCOMPRESSED) {
@@ -566,8 +584,8 @@ function plainCiphertext2ASN1 (data) {
   const c3 = data.subarray(65, 97)
   const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
   const derY = new rs.asn1.DERInteger({ bigint: point1.getY().toBigInteger() })
-  const derC3 = new rs.asn1.DEROctetString({ hex: sm3.toHex(c3) })
-  const derC2 = new rs.asn1.DEROctetString({ hex: sm3.toHex(c2) })
+  const derC3 = new rs.asn1.DEROctetString({ hex: Buffer.from(c3).toString('hex') })
+  const derC2 = new rs.asn1.DEROctetString({ hex: Buffer.from(c2).toString('hex') })
   const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
 
   return derSeq.getEncodedHex()
@@ -613,7 +631,7 @@ function asn1Ciphertext2Plain (hexASN1Data) {
   const c3 = aValue[2]
   const c2 = aValue[3]
 
-  return sm3.toHex(new Uint8Array(point.getEncoded(false))) + c3 + c2
+  return Buffer.from(point.getEncoded(false)).toString('hex') + c3 + c2
 }
 
 /**
@@ -625,7 +643,7 @@ function asn1Ciphertext2Plain (hexASN1Data) {
  * @returns hex plain format ciphertext
  */
 function encryptHex (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
-  return encrypt(pubkey, sm3.fromHex(data), opts)
+  return encrypt(pubkey, new Uint8Array(Buffer.from(data, 'hex')), opts)
 }
 
 /**
@@ -667,7 +685,7 @@ function decryptHex (prvKey, data) {
   if (tag === '30') {
     data = asn1Ciphertext2Plain(data)
   }
-  return decrypt(prvKey, sm3.fromHex(data))
+  return decrypt(prvKey, new Uint8Array(Buffer.from(data, 'hex')))
 }
 
 function getCurveName () {
@@ -689,7 +707,7 @@ rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
       const hCSRI = (new rs.asn1.csr.CertificationRequestInfo(this.params)).getEncodedHex()
       const sig = new Signature({ alg: this.params.sigalg })
       sig.init(this.params.sbjprvkey)
-      const sighex = sig.sm2Sign(sm3.fromHex(hCSRI))
+      const sighex = sig.sm2Sign(new Uint8Array(Buffer.from(hCSRI, 'hex')))
       this.params.sighex = sighex
     }
   }
@@ -710,7 +728,7 @@ function createX509 () {
 
     const sig = new Signature({ alg: algName })
     sig.init(pubKey)
-    return sig.sm2Verify(hSigVal, sm3.fromHex(hTbsCert))
+    return sig.sm2Verify(hSigVal, new Uint8Array(Buffer.from(hTbsCert, 'hex')))
   }
   return x
 }

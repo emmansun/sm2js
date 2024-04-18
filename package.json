@@ -13,7 +13,6 @@
         "test": "standard && node src/cryptojs_sm3_test.js && node src/cryptojs_sm4_test.js && node src/sm2_test.js"
     },
     "dependencies": {
-        "gmsm-sm3js": "^0.2.0",
         "jsrsasign": "^11.1.0"
     },
     "devDependencies": {
