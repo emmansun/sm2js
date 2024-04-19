@@ -59,11 +59,11 @@ rs.asn1.x509.OID.name2oidList[SM2_CURVE_NAME] = '1.2.156.10197.1.301'
 
 if (!rs.BigInteger.prototype.toByteArrayUnsigned) {
   /**
- * Returns a byte array representation of the big integer.
- *
- * This returns the absolute of the contained value in big endian
- * form. A value of zero results in an empty array.
- */
+   * Returns a byte array representation of the big integer.
+   *
+   * This returns the absolute of the contained value in big endian
+   * form. A value of zero results in an empty array.
+   */
   rs.BigInteger.prototype.toByteArrayUnsigned = function () {
     const byteArray = this.toByteArray()
     return byteArray[0] === 0 ? byteArray.slice(1) : byteArray
@@ -88,20 +88,36 @@ const DEFAULT_SM2_ENCRYPT_OPTIONS = new EncrypterOptions(CIPHERTEXT_ENCODING_PLA
 const sm2 = Symbol('sm2')
 
 function adaptSM2 (ecdsa) {
-  // SM2 encryption
-  // @param {data} to be encrypted, can be string/Uint8array/buffer
-  // @return {string} encrypted hex content
   if (!ecdsa[sm2]) {
     ecdsa[sm2] = true
+    /**
+     * Encrypt data with SM2 alg
+     * @param {String|Uint8Array|Buffer} data The data to be encrypted
+     * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
+     * @returns hex string of ciphertext
+     */    
     ecdsa.encrypt = function (data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
       return this.encryptRaw(data, Q, opts)
     }
 
+    /**
+     * Encrypt hex data with SM2 alg
+     * @param {String} data The  hex data to be encrypted
+     * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
+     * @returns hex string of ciphertext
+     */    
     ecdsa.encryptHex = function (dataHex, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       return this.encrypt(new Uint8Array(Buffer.from(dataHex, 'hex')), opts)
     }
 
+    /**
+     * Encrypt raw data with SM2 alg (internal function)
+     * @param {Uint8Array} data The raw data to be encrypted
+     * @param {ECPointFp} Q The ecc point of the public key
+     * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
+     * @returns hex string of ciphertext
+     */    
     ecdsa.encryptRaw = function (data, Q, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       if (!opts || !(opts instanceof EncrypterOptions)) {
         opts = DEFAULT_SM2_ENCRYPT_OPTIONS
@@ -117,46 +133,59 @@ function adaptSM2 (ecdsa) {
       }
       do {
         const k = this.getBigRandom(n)
-        const point1 = G.multiply(k)
-        const point2 = Q.multiply(k)
-        const t = kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
-        if (!t) {
+        const c1 = G.multiply(k)
+        const s = Q.multiply(k)
+        const c2 = kdf(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
+        if (!c2) {
           if (count++ > MAX_RETRY) {
             throw new Error('sm2: A5, failed to calculate valid t')
           }
           continue
         }
         for (let i = 0; i < dataLen; i++) {
-          t[i] ^= data[i]
+          c2[i] ^= data[i]
         }
-        md.update(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
+        md.update(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE)))
         md.update(data)
-        md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
-        const hash = md.digestRaw()
+        md.update(new Uint8Array(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
+        const c3 = md.digestRaw()
         if (opts.getEncodingFormat() === CIPHERTEXT_ENCODING_PLAIN) {
-          return Buffer.from(point1.getEncoded(false)).toString('hex') + Buffer.from(hash).toString('hex') + Buffer.from(t).toString('hex')
+          return Buffer.from(c1.getEncoded(false)).toString('hex') + Buffer.from(c3).toString('hex') + Buffer.from(c2).toString('hex')
         }
-        const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
-        const derY = new rs.asn1.DERInteger({ bigint: point1.getY().toBigInteger() })
-        const derC3 = new rs.asn1.DEROctetString({ hex: Buffer.from(hash).toString('hex') })
-        const derC2 = new rs.asn1.DEROctetString({ hex: Buffer.from(t).toString('hex') })
+        const derX = new rs.asn1.DERInteger({ bigint: c1.getX().toBigInteger() })
+        const derY = new rs.asn1.DERInteger({ bigint: c1.getY().toBigInteger() })
+        const derC3 = new rs.asn1.DEROctetString({ hex: Buffer.from(c3).toString('hex') })
+        const derC2 = new rs.asn1.DEROctetString({ hex: Buffer.from(c2).toString('hex') })
         const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
-        return derSeq.getEncodedHex()
+        return derSeq.tohex()
       } while (true)
     }
 
-    // SM2 decryption
-    // @param {data} to be decrypted, can be string/Uint8array/buffer
-    // @return {string} decrypted hex content
+    /**
+     * SM2 decryption
+     * @param {String|Uint8Array|Buffer} data The data to be decrypted
+     * @return {String} decrypted hex content
+     */
     ecdsa.decrypt = function (data) {
       const d = new rs.BigInteger(this.prvKeyHex, 16)
       return this.decryptRaw(data, d)
     }
 
+    /**
+     * SM2 decryption
+     * @param {String} dataHex The hex data to be decrypted
+     * @return {String} decrypted hex content
+     */    
     ecdsa.decryptHex = function (dataHex) {
       return this.decrypt(new Uint8Array(Buffer.from(dataHex, 'hex')))
     }
 
+    /**
+     * SM2 decryption (internal function)
+     * @param {Uint8Array} data The hex data to be decrypted
+     * @param {BigInteger} d The SM2 private key
+     * @return {String} decrypted hex content
+     */    
     ecdsa.decryptRaw = function (data, d) {
       data = util.normalizeInput(data)
       const dataLen = data.length
@@ -167,21 +196,22 @@ function adaptSM2 (ecdsa) {
       if (dataLen < 97) {
         throw new Error('sm2: invalid cipher content length')
       }
-      const point1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
-      const point2 = point1.multiply(d)
+      const c1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
+      const s = point1.multiply(d)
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
-      const t = kdf(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
-      if (!t) {
+      const plaintext = kdf(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
+      if (!plaintext) {
         throw new Error('sm2: invalid cipher content')
       }
       for (let i = 0; i < c2.length; i++) {
-        t[i] ^= c2[i]
+        plaintext[i] ^= c2[i]
       }
+      // check c3
       const md = new MessageDigest()
-      md.update(new Uint8Array(util.integerToBytes(point2.getX().toBigInteger(), SM2_BYTE_SIZE)))
-      md.update(t)
-      md.update(new Uint8Array(util.integerToBytes(point2.getY().toBigInteger(), SM2_BYTE_SIZE)))
+      md.update(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE)))
+      md.update(plaintext)
+      md.update(new Uint8Array(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
       const hash = md.digestRaw()
       let xor
       for (let i = 0; i < hash.length; i++) {
@@ -191,9 +221,25 @@ function adaptSM2 (ecdsa) {
         throw new Error('sm2: decryption error')
       }
 
-      return Buffer.from(t).toString('hex')
+      return Buffer.from(plaintext).toString('hex')
     }
 
+    /**
+     * Sign the hash of message with given private key
+     * @param {String} hashHex the hex string of hash
+     * @param {String} privHex the hex string of the private key
+     * @returns the hex string of the signature with asn1 format
+     */    
+    ecdsa.signHex = function (hashHex, privHex) {
+      const d = new rs.BigInteger(privHex, 16)
+      return this._signHexInternal(hashHex, d)
+    }
+
+    /**
+     * Sign the hash of message
+     * @param {String} hashHex the hex string of hash
+     * @returns the hex string of the signature with asn1 format
+     */    
     ecdsa.signWithMessageHash = function (hashHex) {
       if (!this._d) {
         this._d = new rs.BigInteger(this.prvKeyHex, 16)
@@ -226,11 +272,14 @@ function adaptSM2 (ecdsa) {
       return rs.ECDSA.biRSSigToASN1Sig(r, s)
     }
 
-    ecdsa.signHex = function (hashHex, privHex) {
-      const d = new rs.BigInteger(privHex, 16)
-      return this._signHexInternal(hashHex, d)
-    }
-
+    /**
+     * Internal function, called by parent class ECDSA
+     * @param {BigInteger} e The big integer from hash of the message
+     * @param {BigInteger} r The big integer from signature r
+     * @param {BigInteger} s The big integer from signature s
+     * @param {ECPointFp} Q The ecc point of the public key
+     * @returns ture or false
+     */    
     ecdsa.verifyRaw = function (e, r, s, Q) {
       const n = this.ecparams.n
       const G = this.ecparams.G
@@ -252,7 +301,11 @@ function adaptSM2 (ecdsa) {
       return v.equals(r)
     }
 
-    // calculateZA ZA = H256(ENTLA || IDA || a || b || xG || yG || xA || yA)
+    /**
+     * calculateZA ZA = H256(ENTLA || IDA || a || b || xG || yG || xA || yA)
+     * @param {String|Uint8Array|Buffer} uid The user id, use default if not specified
+     * @returns Uint8Array of the result
+     */
     ecdsa.calculateZA = function (uid) {
       if (!uid) {
         uid = DEFAULT_UID
@@ -262,7 +315,7 @@ function adaptSM2 (ecdsa) {
       if (uidLen >= 0x2000) {
         throw new Error('sm2: the uid is too long')
       }
-      const entla = uidLen << 3
+      const entla = uidLen << 3 // bit length
       const md = new MessageDigest()
       md.update(new Uint8Array([0xff & (entla >>> 8), 0xff & entla]))
       md.update(uid)
@@ -283,6 +336,12 @@ function adaptSM2 (ecdsa) {
   }
 }
 
+/**
+ * SM2 KDF function
+ * @param {String|Uint8Array|Buffer} data The salt for kdf
+ * @param {Number} len The request key bytes length
+ * @returns Uint8Array of the generated key
+ */
 function kdf (data, len) {
   data = util.normalizeInput(data)
   const limit = (len + SM3_SIZE - 1) >>> SM3_SIZE_BIT_SIZE
@@ -374,6 +433,9 @@ class MessageDigest {
   }
 }
 
+/**
+ * Signature class which is very similar to KJUR.crypto.Signature
+ */
 class Signature {
   constructor (params) {
     this.initParams = params
