@@ -197,7 +197,7 @@ function adaptSM2 (ecdsa) {
         throw new Error('sm2: invalid cipher content length')
       }
       const c1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
-      const s = point1.multiply(d)
+      const s = c1.multiply(d)
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
       const plaintext = kdf(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
