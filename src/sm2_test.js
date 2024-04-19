@@ -101,7 +101,7 @@ test('SM2 P-256 encrypt, output hex asn.1 ciphertext', function (t) {
   const expected = '73656e64207265696e666f7263656d656e74732c20776527726520676f696e6720746f20616476616e6365'
   const keypair = ec.generateKeyPairHex()
   const ciphertext = sm2.encrypt(keypair.ecpubhex, plainText, sm2.asn1EncrypterOptions())
-  const tag = ciphertext.substr(0, 2)
+  const tag = ciphertext.substring(0, 2)
   t.equal(tag, '30')
   const result = sm2.decryptHex(keypair.ecprvhex, ciphertext)
   t.equal(result, expected)

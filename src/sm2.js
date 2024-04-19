@@ -57,17 +57,15 @@ rs.ECDSA.getName = function (s) {
 rs.asn1.x509.OID.name2oidList[SM2_SIGN_ALG] = '1.2.156.10197.1.501'
 rs.asn1.x509.OID.name2oidList[SM2_CURVE_NAME] = '1.2.156.10197.1.301'
 
-if (!rs.BigInteger.prototype.toByteArrayUnsigned) {
-  /**
-   * Returns a byte array representation of the big integer.
-   *
-   * This returns the absolute of the contained value in big endian
-   * form. A value of zero results in an empty array.
-   */
-  rs.BigInteger.prototype.toByteArrayUnsigned = function () {
-    const byteArray = this.toByteArray()
-    return byteArray[0] === 0 ? byteArray.slice(1) : byteArray
-  }
+/**
+ * Returns a byte array representation of the big integer.
+ *
+ * This returns the absolute of the contained value in big endian
+ * form. A value of zero results in an empty array.
+ */
+rs.BigInteger.prototype.toByteArrayUnsigned = rs.BigInteger.prototype.toByteArrayUnsigned || function () {
+  const byteArray = this.toByteArray()
+  return byteArray[0] === 0 ? byteArray.slice(1) : byteArray
 }
 
 class EncrypterOptions {
@@ -670,7 +668,7 @@ function _getASN1Values (hexASN1Data, aIdx, aTag) {
   const aValue = []
   for (let i = 0; i < aIdx.length; i++) {
     const idx = aIdx[i]
-    const tag = hexASN1Data.substr(idx, 2)
+    const tag = hexASN1Data.substring(idx, idx + 2)
     if (tag !== aTag[i]) {
       throw new Error('sm2: invalid asn1 format ciphertext, want ' + aTag[i] + ', get ' + tag)
     }
@@ -690,7 +688,7 @@ function asn1Ciphertext2Plain (hexASN1Data) {
     throw new Error('sm2: invalid asn1 format ciphertext')
   }
   const idx = 0
-  const tag = hexASN1Data.substr(idx, 2)
+  const tag = hexASN1Data.substring(idx, idx + 2)
   if (tag !== '30') {
     throw new Error('sm2: invalid asn1 format ciphertext')
   }
@@ -753,7 +751,7 @@ function decryptHex (prvKey, data) {
   if (typeof data !== 'string' || data.length < 98 * 2) {
     throw new Error('sm2: invalid chiphertext length')
   }
-  const tag = data.substr(0, 2)
+  const tag = data.substring(0, 2)
   if (tag !== '30' && tag !== '04') {
     throw new Error(`sm2: invalid ciphertext encoding format ${tag}`)
   }
