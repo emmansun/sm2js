@@ -95,7 +95,7 @@ function adaptSM2 (ecdsa) {
      * @param {String|Uint8Array|Buffer} data The data to be encrypted
      * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
      * @returns hex string of ciphertext
-     */    
+     */
     ecdsa.encrypt = function (data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
       return this.encryptRaw(data, Q, opts)
@@ -106,7 +106,7 @@ function adaptSM2 (ecdsa) {
      * @param {String} data The  hex data to be encrypted
      * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
      * @returns hex string of ciphertext
-     */    
+     */
     ecdsa.encryptHex = function (dataHex, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       return this.encrypt(new Uint8Array(Buffer.from(dataHex, 'hex')), opts)
     }
@@ -117,7 +117,7 @@ function adaptSM2 (ecdsa) {
      * @param {ECPointFp} Q The ecc point of the public key
      * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
      * @returns hex string of ciphertext
-     */    
+     */
     ecdsa.encryptRaw = function (data, Q, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
       if (!opts || !(opts instanceof EncrypterOptions)) {
         opts = DEFAULT_SM2_ENCRYPT_OPTIONS
@@ -175,7 +175,7 @@ function adaptSM2 (ecdsa) {
      * SM2 decryption
      * @param {String} dataHex The hex data to be decrypted
      * @return {String} decrypted hex content
-     */    
+     */
     ecdsa.decryptHex = function (dataHex) {
       return this.decrypt(new Uint8Array(Buffer.from(dataHex, 'hex')))
     }
@@ -185,7 +185,7 @@ function adaptSM2 (ecdsa) {
      * @param {Uint8Array} data The hex data to be decrypted
      * @param {BigInteger} d The SM2 private key
      * @return {String} decrypted hex content
-     */    
+     */
     ecdsa.decryptRaw = function (data, d) {
       data = util.normalizeInput(data)
       const dataLen = data.length
@@ -229,7 +229,7 @@ function adaptSM2 (ecdsa) {
      * @param {String} hashHex the hex string of hash
      * @param {String} privHex the hex string of the private key
      * @returns the hex string of the signature with asn1 format
-     */    
+     */
     ecdsa.signHex = function (hashHex, privHex) {
       const d = new rs.BigInteger(privHex, 16)
       return this._signHexInternal(hashHex, d)
@@ -239,7 +239,7 @@ function adaptSM2 (ecdsa) {
      * Sign the hash of message
      * @param {String} hashHex the hex string of hash
      * @returns the hex string of the signature with asn1 format
-     */    
+     */
     ecdsa.signWithMessageHash = function (hashHex) {
       if (!this._d) {
         this._d = new rs.BigInteger(this.prvKeyHex, 16)
@@ -279,7 +279,7 @@ function adaptSM2 (ecdsa) {
      * @param {BigInteger} s The big integer from signature s
      * @param {ECPointFp} Q The ecc point of the public key
      * @returns ture or false
-     */    
+     */
     ecdsa.verifyRaw = function (e, r, s, Q) {
       const n = this.ecparams.n
       const G = this.ecparams.G
