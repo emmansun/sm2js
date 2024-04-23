@@ -211,11 +211,11 @@ function adaptSM2 (ecdsa) {
       md.update(plaintext)
       md.update(new Uint8Array(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
       const hash = md.digestRaw()
-      let xor
+      let difference = 0
       for (let i = 0; i < hash.length; i++) {
-        xor = hash[i] ^ c3[i]
+        difference |= hash[i] ^ c3[i]
       }
-      if (xor !== 0) {
+      if (difference !== 0) {
         throw new Error('sm2: decryption error')
       }
 
