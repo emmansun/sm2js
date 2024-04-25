@@ -1,4 +1,4 @@
-require('./cryptojs_sm3')
+require('../src/cryptojs_sm3')
 const test = require('tape')
 const rs = require('jsrsasign')
 

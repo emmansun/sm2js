@@ -2,6 +2,7 @@ const rs = require('jsrsasign')
 const KJUR = rs.KJUR
 const C = rs.CryptoJS
 const CEnc = C.enc
+const util = require('./util')
 
 function parsePBES2 (hP8Prv) {
   const pASN = rs.ASN1HEX.parse(hP8Prv)
@@ -148,7 +149,7 @@ function patchSM4 () {
           default:
             throw new Error('unsupported algorithm: ' + algName)
         }
-        const cipher = crypto.createCipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'))
+        const cipher = crypto.createCipheriv(cipherMode, util.hexToUint8Array(hKey), util.hexToUint8Array(param.iv))
         return cipher.update(hPlain, 'hex', 'hex') + cipher.final('hex')
       }
       const wKey = C.enc.Hex.parse(hKey)
@@ -222,7 +223,7 @@ function patchSM4 () {
           default:
             throw new Error('unsupported algorithm: ' + algName)
         }
-        const cipher = crypto.createDecipheriv(cipherMode, Buffer.from(hKey, 'hex'), Buffer.from(param.iv, 'hex'))
+        const cipher = crypto.createDecipheriv(cipherMode, util.hexToUint8Array(hKey), util.hexToUint8Array(param.iv))
         return cipher.update(hEnc, 'hex', 'hex') + cipher.final('hex')
       }
       const wKey = C.enc.Hex.parse(hKey)

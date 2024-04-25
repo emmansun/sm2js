@@ -1,7 +1,7 @@
 const test = require('tape')
 const rs = require('jsrsasign')
 const KJUR = rs.KJUR
-require('./jsrsasign_patch').patch()
+require('../src/jsrsasign_patch').patch()
 
 test('test sm4-cbc with KJUR.crypto.Cipher', (t) => {
   const cases = [

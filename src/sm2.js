@@ -90,7 +90,7 @@ function adaptSM2 (ecdsa) {
     ecdsa[sm2] = true
     /**
      * Encrypt data with SM2 alg
-     * @param {String|Uint8Array|Buffer} data The data to be encrypted
+     * @param {string|Uint8Array} data The data to be encrypted
      * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
      * @returns hex string of ciphertext
      */
@@ -101,12 +101,12 @@ function adaptSM2 (ecdsa) {
 
     /**
      * Encrypt hex data with SM2 alg
-     * @param {String} data The  hex data to be encrypted
+     * @param {string} data The  hex data to be encrypted
      * @param {EncrypterOptions} opts options for ciphertext format, default is C1C3C2
      * @returns hex string of ciphertext
      */
     ecdsa.encryptHex = function (dataHex, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
-      return this.encrypt(new Uint8Array(Buffer.from(dataHex, 'hex')), opts)
+      return this.encrypt(util.hexToUint8Array(dataHex), opts)
     }
 
     /**
@@ -133,7 +133,7 @@ function adaptSM2 (ecdsa) {
         const k = this.getBigRandom(n)
         const c1 = G.multiply(k)
         const s = Q.multiply(k)
-        const c2 = kdf(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
+        const c2 = kdf(Uint8Array.from(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen)
         if (!c2) {
           if (count++ > MAX_RETRY) {
             throw new Error('sm2: A5, failed to calculate valid t')
@@ -143,17 +143,17 @@ function adaptSM2 (ecdsa) {
         for (let i = 0; i < dataLen; i++) {
           c2[i] ^= data[i]
         }
-        md.update(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE)))
+        md.update(Uint8Array.from(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE)))
         md.update(data)
-        md.update(new Uint8Array(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
+        md.update(Uint8Array.from(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
         const c3 = md.digestRaw()
         if (opts.getEncodingFormat() === CIPHERTEXT_ENCODING_PLAIN) {
-          return Buffer.from(c1.getEncoded(false)).toString('hex') + Buffer.from(c3).toString('hex') + Buffer.from(c2).toString('hex')
+          return util.toHex(c1.getEncoded(false)) + util.toHex(c3) + util.toHex(c2)
         }
         const derX = new rs.asn1.DERInteger({ bigint: c1.getX().toBigInteger() })
         const derY = new rs.asn1.DERInteger({ bigint: c1.getY().toBigInteger() })
-        const derC3 = new rs.asn1.DEROctetString({ hex: Buffer.from(c3).toString('hex') })
-        const derC2 = new rs.asn1.DEROctetString({ hex: Buffer.from(c2).toString('hex') })
+        const derC3 = new rs.asn1.DEROctetString({ hex: util.toHex(c3) })
+        const derC2 = new rs.asn1.DEROctetString({ hex: util.toHex(c2) })
         const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
         return derSeq.tohex()
       } while (true)
@@ -161,7 +161,7 @@ function adaptSM2 (ecdsa) {
 
     /**
      * SM2 decryption
-     * @param {String|Uint8Array|Buffer} data The data to be decrypted
+     * @param {String|Uint8Array} data The data to be decrypted
      * @return {String} decrypted hex content
      */
     ecdsa.decrypt = function (data) {
@@ -171,18 +171,18 @@ function adaptSM2 (ecdsa) {
 
     /**
      * SM2 decryption
-     * @param {String} dataHex The hex data to be decrypted
-     * @return {String} decrypted hex content
+     * @param {string} dataHex The hex data to be decrypted
+     * @return {string} decrypted hex content
      */
     ecdsa.decryptHex = function (dataHex) {
-      return this.decrypt(new Uint8Array(Buffer.from(dataHex, 'hex')))
+      return this.decrypt(util.hexToUint8Array(dataHex))
     }
 
     /**
      * SM2 decryption (internal function)
      * @param {Uint8Array} data The hex data to be decrypted
      * @param {BigInteger} d The SM2 private key
-     * @return {String} decrypted hex content
+     * @return {string} decrypted hex content
      */
     ecdsa.decryptRaw = function (data, d) {
       data = util.normalizeInput(data)
@@ -198,7 +198,7 @@ function adaptSM2 (ecdsa) {
       const s = c1.multiply(d)
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
-      const plaintext = kdf(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
+      const plaintext = kdf(Uint8Array.from(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
       if (!plaintext) {
         throw new Error('sm2: invalid cipher content')
       }
@@ -207,9 +207,9 @@ function adaptSM2 (ecdsa) {
       }
       // check c3
       const md = new MessageDigest()
-      md.update(new Uint8Array(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE)))
+      md.update(Uint8Array.from(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE)))
       md.update(plaintext)
-      md.update(new Uint8Array(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
+      md.update(Uint8Array.from(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
       const hash = md.digestRaw()
       let difference = 0
       for (let i = 0; i < hash.length; i++) {
@@ -219,7 +219,7 @@ function adaptSM2 (ecdsa) {
         throw new Error('sm2: decryption error')
       }
 
-      return Buffer.from(plaintext).toString('hex')
+      return util.toHex(plaintext)
     }
 
     /**
@@ -301,7 +301,7 @@ function adaptSM2 (ecdsa) {
 
     /**
      * calculateZA ZA = H256(ENTLA || IDA || a || b || xG || yG || xA || yA)
-     * @param {String|Uint8Array|Buffer} uid The user id, use default if not specified
+     * @param {string|Uint8Array} uid The user id, use default if not specified
      * @returns Uint8Array of the result
      */
     ecdsa.calculateZA = function (uid) {
@@ -315,9 +315,9 @@ function adaptSM2 (ecdsa) {
       }
       const entla = uidLen << 3 // bit length
       const md = new MessageDigest()
-      md.update(new Uint8Array([0xff & (entla >>> 8), 0xff & entla]))
+      md.update(Uint8Array.from([0xff & (entla >>> 8), 0xff & entla]))
       md.update(uid)
-      md.update(new Uint8Array(Buffer.from(SM2_CURVE_PARAMS_FOR_ZA, 'hex'))) // a||b||gx||gy
+      md.update(util.hexToUint8Array(SM2_CURVE_PARAMS_FOR_ZA)) // a||b||gx||gy
       let Q
       if (this.pubKeyHex) {
         Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
@@ -325,10 +325,10 @@ function adaptSM2 (ecdsa) {
         const d = new rs.BigInteger(this.prvKeyHex, 16)
         const G = this.ecparams.G
         Q = G.multiply(d)
-        this.pubKeyHex = Buffer.from(Q.getEncoded()).toString('hex')
+        this.pubKeyHex = util.toHex(Q.getEncoded())
       }
-      md.update(new Uint8Array(util.integerToBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
-      md.update(new Uint8Array(util.integerToBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
+      md.update(Uint8Array.from(util.integerToBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
+      md.update(Uint8Array.from(util.integerToBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
       return md.digestRaw()
     }
   }
@@ -336,8 +336,8 @@ function adaptSM2 (ecdsa) {
 
 /**
  * SM2 KDF function
- * @param {String|Uint8Array|Buffer} data The salt for kdf
- * @param {Number} len The request key bytes length
+ * @param {string|Uint8Array} data The salt for kdf
+ * @param {number} len The request key bytes length
  * @returns Uint8Array of the generated key
  */
 function kdf (data, len) {
@@ -394,7 +394,7 @@ class MessageDigest {
    */
   updateHex (hex) {
     if (useNodeSM3) {
-      this.md.update(new Uint8Array(Buffer.from(hex, 'hex')))
+      this.md.update(util.hexToUint8Array(hex))
     } else {
       this.md.update(rs.CryptoJS.enc.Hex.parse(hex))
     }
@@ -618,7 +618,7 @@ class Signature {
  * SM2 encryption function
  *
  * @param {string|object} pubkey hex public key string or ECDSA object
- * @param {string|Buffer|Uint8Array} data plaintext data
+ * @param {string|Uint8Array} data plaintext data
  * @param {EncrypterOptions} opts options, just support encodingFormat now, default is plain encoding format
  * @returns hex plain format ciphertext
  */
@@ -643,7 +643,7 @@ function encrypt (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
  * @returns hex ans.1 format ciphertext
  */
 function plainCiphertext2ASN1 (data) {
-  data = new Uint8Array(Buffer.from(data, 'hex'))
+  data = util.hexToUint8Array(data)
   const dataLen = data.length
 
   if (data[0] !== UNCOMPRESSED) {
@@ -657,8 +657,8 @@ function plainCiphertext2ASN1 (data) {
   const c3 = data.subarray(65, 97)
   const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
   const derY = new rs.asn1.DERInteger({ bigint: point1.getY().toBigInteger() })
-  const derC3 = new rs.asn1.DEROctetString({ hex: Buffer.from(c3).toString('hex') })
-  const derC2 = new rs.asn1.DEROctetString({ hex: Buffer.from(c2).toString('hex') })
+  const derC3 = new rs.asn1.DEROctetString({ hex: util.toHex(c3) })
+  const derC2 = new rs.asn1.DEROctetString({ hex: util.toHex(c2) })
   const derSeq = new rs.asn1.DERSequence({ array: [derX, derY, derC3, derC2] })
 
   return derSeq.getEncodedHex()
@@ -704,7 +704,7 @@ function asn1Ciphertext2Plain (hexASN1Data) {
   const c3 = aValue[2]
   const c2 = aValue[3]
 
-  return Buffer.from(point.getEncoded(false)).toString('hex') + c3 + c2
+  return util.toHex(point.getEncoded(false)) + c3 + c2
 }
 
 /**
@@ -716,14 +716,14 @@ function asn1Ciphertext2Plain (hexASN1Data) {
  * @returns hex plain format ciphertext
  */
 function encryptHex (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
-  return encrypt(pubkey, new Uint8Array(Buffer.from(data, 'hex')), opts)
+  return encrypt(pubkey, util.hexToUint8Array(data), opts)
 }
 
 /**
  * SM2 decrypt function
  *
  * @param {string|object} prvKey private key used to decrypt, private key hex string or ECDSA object.
- * @param {string|Buffer|Uint8Array} data plain format (C1||C3|C2) ciphertext data
+ * @param {string|Uint8Array} data plain format (C1||C3|C2) ciphertext data
  * @returns hex plaintext
  */
 function decrypt (prvKey, data) {
@@ -758,7 +758,7 @@ function decryptHex (prvKey, data) {
   if (tag === '30') {
     data = asn1Ciphertext2Plain(data)
   }
-  return decrypt(prvKey, new Uint8Array(Buffer.from(data, 'hex')))
+  return decrypt(prvKey, util.hexToUint8Array(data))
 }
 
 function getCurveName () {
@@ -780,7 +780,7 @@ rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
       const hCSRI = (new rs.asn1.csr.CertificationRequestInfo(this.params)).getEncodedHex()
       const sig = new Signature({ alg: this.params.sigalg })
       sig.init(this.params.sbjprvkey)
-      const sighex = sig.sm2Sign(new Uint8Array(Buffer.from(hCSRI, 'hex')))
+      const sighex = sig.sm2Sign(util.hexToUint8Array(hCSRI))
       this.params.sighex = sighex
     }
   }
@@ -801,7 +801,7 @@ function createX509 () {
 
     const sig = new Signature({ alg: algName })
     sig.init(pubKey)
-    return sig.sm2Verify(hSigVal, new Uint8Array(Buffer.from(hTbsCert, 'hex')))
+    return sig.sm2Verify(hSigVal, util.hexToUint8Array(hTbsCert))
   }
   return x
 }
