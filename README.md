@@ -5,7 +5,7 @@
 
 **sm2js is a pure Javascript implementation of the GM-Standards SM2 (also support sm3/sm4) based on [jsrsasign](https://github.com/kjur/jsrsasign).**
 
-基于jsrsasign实现的优势在于充分利用jsrsasign的CSR，CERT，PKCS8等处理能力。您也可以参考另外一个实现：[sjcl-sm](https://github.com/emmansun/sm4js)。
+基于jsrsasign实现的优势在于充分利用jsrsasign的PKIX，CSR，CERT，PKCS8等处理能力。您也可以参考另外一个实现：[sjcl-sm](https://github.com/emmansun/sm4js)。
 
 ## SM2
 
