@@ -400,6 +400,10 @@ class MessageDigest {
     }
   }
 
+  /**
+   * Finalizes the hash computation.
+   * @returns {Uint8Array} The digest of type Uint8Array
+   */
   digestRaw () {
     if (useNodeSM3) {
       const h = this.md.digest()
@@ -412,6 +416,11 @@ class MessageDigest {
     }
   }
 
+  /**
+   * Updates this hasher with a data and finalizes the hash computation.
+   * @param {string|Uint8Array} data the data to be appended
+   * @returns {string} The hex string of the digest
+   */
   digest (data) {
     if (data) {
       this.update(data)
@@ -427,6 +436,11 @@ class MessageDigest {
     }
   }
 
+  /**
+   * Updates this hasher with a hex string data and finalizes the hash computation.
+   * @param {string} hex the hex string data
+   * @returns {Uint8Array} The digest of type Uint8Array
+   */
   digestHex (hex) {
     this.updateHex(hex)
     return this.digest()
