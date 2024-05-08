@@ -384,7 +384,7 @@ class MessageDigest {
     if (useNodeSM3) {
       this.md.update(data)
     } else {
-      this.md.update(rs.CryptoJS.enc.Uint8Array.parse(data))
+      this.md.update(rs.CryptoJS.enc.Uint8Array.parse(util.normalizeInput(data)))
     }
   }
 
@@ -407,6 +407,7 @@ class MessageDigest {
       return h
     } else {
       const hash = this.md.finalize()
+      this.md = rs.KJUR.crypto.Util.CRYPTOJSMESSAGEDIGESTNAME.sm3.create()
       return rs.CryptoJS.enc.Uint8Array.stringify(hash)
     }
   }
@@ -417,6 +418,7 @@ class MessageDigest {
     }
     if (!useNodeSM3) {
       const hash = this.md.finalize()
+      this.md = rs.KJUR.crypto.Util.CRYPTOJSMESSAGEDIGESTNAME.sm3.create()
       return hash.toString(rs.CryptoJS.enc.Hex)
     } else {
       const h = this.md.digest('hex')
