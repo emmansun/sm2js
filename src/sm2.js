@@ -861,6 +861,18 @@ function createSM2Signature () {
   return new Signature({ alg: SM2_SIGN_ALG })
 }
 
+function generateKeyPair () {
+  const maximum = rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).n.subtract(rs.BigInteger.ONE)
+  for (let attempt = 0; attempt < MAX_RETRY; attempt++) {
+    const keys = rs.KEYUTIL.generateKeypair('EC', SM2_CURVE_NAME)
+    const scalar = new rs.BigInteger(keys.prvKeyObj.prvKeyHex, 16)
+    if (scalar.signum() > 0 && scalar.compareTo(maximum) < 0) {
+      return keys
+    }
+  }
+  throw new Error('sm2: failed to generate valid private key')
+}
+
 const originalNewCSRPEM = rs.asn1.csr.CSRUtil.newCSRPEM
 rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
   if (param.sigalg !== SM2_SIGN_ALG) {
@@ -909,6 +921,7 @@ function plainEncrypterOptions () {
 module.exports = {
   Signature,
   createSM2Signature,
+  generateKeyPair,
   getCurveName,
   getSignAlg,
   encrypt,

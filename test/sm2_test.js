@@ -77,6 +77,56 @@ const pkcs8SM2P256PrivateKeyHex = '308187020100301306072a8648ce3d020106082a811cc
 
 const sec1SM2PrivateKeyHex = '30770201010420857dd87970aab4328dad891c781e3b270742aa9cf5d3d3764efe77f6c3d6e33aa00a06082a811ccf5501822da14403420004ced963a5705a0490ff13dde893cbda6de61f41fcaf917a5b4007d30cdec46426bc39b9c18d15b2a68a64dc333f262e600b675856285b42296f24741ee6f562a0'
 
+test('SM2 key generation helper returns usable matching keys', function (t) {
+  const keys = sm2.generateKeyPair()
+  const params = rs.crypto.ECParameterDB.getByName(sm2.getCurveName())
+  const scalar = new rs.BigInteger(keys.prvKeyObj.prvKeyHex, 16)
+  t.true(keys.prvKeyObj instanceof rs.ECDSA)
+  t.true(keys.pubKeyObj instanceof rs.ECDSA)
+  t.equal(keys.prvKeyObj.curveName, sm2.getCurveName())
+  t.equal(keys.pubKeyObj.curveName, sm2.getCurveName())
+  t.true(/^[0-9a-f]{64}$/i.test(keys.prvKeyObj.prvKeyHex))
+  t.true(/^04[0-9a-f]{128}$/i.test(keys.pubKeyObj.pubKeyHex))
+  t.true(scalar.signum() > 0 && scalar.compareTo(params.n.subtract(rs.BigInteger.ONE)) < 0)
+  const point = params.G.multiply(scalar)
+  const expectedPublicKey = '04' + point.getX().toBigInteger().toString(16).padStart(64, '0') + point.getY().toBigInteger().toString(16).padStart(64, '0')
+  t.equal(keys.pubKeyObj.pubKeyHex, expectedPublicKey)
+  t.equal(sm2.decryptHex(keys.prvKeyObj, sm2.encrypt(keys.pubKeyObj, 'test')), '74657374')
+  const signer = sm2.createSM2Signature()
+  signer.init(keys.prvKeyObj)
+  const verifier = sm2.createSM2Signature()
+  verifier.init(keys.pubKeyObj)
+  t.true(verifier.sm2Verify(signer.sm2Sign('test'), 'test'))
+  t.end()
+})
+
+test('SM2 key generation helper retries forbidden private scalars', function (t) {
+  const generate = rs.KEYUTIL.generateKeypair
+  const expected = generate('EC', sm2.getCurveName())
+  const params = rs.crypto.ECParameterDB.getByName(sm2.getCurveName())
+  const invalidScalars = [rs.BigInteger.ZERO, params.n.subtract(rs.BigInteger.ONE), params.n]
+  let calls = 0
+  try {
+    rs.KEYUTIL.generateKeypair = function (algorithm, curve) {
+      const scalar = invalidScalars[calls++]
+      if (!scalar) return expected
+      return { prvKeyObj: { prvKeyHex: scalar.toString(16) } }
+    }
+    t.equal(sm2.generateKeyPair(), expected)
+    t.equal(calls, 4)
+    calls = 0
+    rs.KEYUTIL.generateKeypair = function () {
+      calls++
+      return { prvKeyObj: { prvKeyHex: params.n.subtract(rs.BigInteger.ONE).toString(16) } }
+    }
+    t.throws(() => sm2.generateKeyPair(), /failed to generate valid private key/)
+    t.equal(calls, 100, 'key generation retries are bounded')
+  } finally {
+    rs.KEYUTIL.generateKeypair = generate
+  }
+  t.end()
+})
+
 test('SM2 P-256 encrypt/decrypt local', function (t) {
   const ec = new rs.ECDSA({ curve: sm2.getCurveName() })
   const plainText = 'send reinforcements, we\'re going to advance'

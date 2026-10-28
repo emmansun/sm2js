@@ -10,6 +10,9 @@
         "jsrsasign"
     ],
     "main": "index.js",
+    "publishConfig": {
+        "registry": "https://registry.npmjs.org/"
+    },
     "scripts": {
         "test": "standard && node test/util_test.js && node test/cryptojs_sm3_test.js && node test/cryptojs_sm4_test.js && node test/jsrsasign_patch_test.js && node test/sm2_test.js"
     },
