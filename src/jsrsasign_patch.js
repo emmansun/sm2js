@@ -4,44 +4,26 @@ const C = rs.CryptoJS
 const CEnc = C.enc
 const util = require('./util')
 
+const originalParsePBES2 = rs.KEYUTIL.parsePBES2
+const originalGetDKFromPBES2Param = rs.KEYUTIL.getDKFromPBES2Param
+
 function parsePBES2 (hP8Prv) {
+  const params = originalParsePBES2.call(rs.KEYUTIL, hP8Prv)
   const pASN = rs.ASN1HEX.parse(hP8Prv)
-  if (rs.aryval(pASN, 'seq.0.seq.0.oid') !== 'pkcs5PBES2' ||
-    rs.aryval(pASN, 'seq.0.seq.1.seq.0.seq.0.oid') !== 'pkcs5PBKDF2') {
-    throw new Error('not pkcs5PBES2 and pkcs5PBKDF2 used')
-  }
   const pASNKDF = rs.aryval(pASN, 'seq.0.seq.1.seq.0.seq.1.seq')
-  if (pASNKDF === undefined) {
-    throw new Error('PBKDF2 parameter not found')
-  }
-  const salt = rs.aryval(pASNKDF, '0.octstr.hex')
-  const hIter = rs.aryval(pASNKDF, '1.int.hex')
-  const prf = rs.aryval(pASNKDF, `${pASNKDF.length - 1}.seq.0.oid`, 'hmacWithSHA1')
-  let iter = -1
-  try {
-    iter = parseInt(hIter, 16)
-  } catch (ex) {
-    throw new Error('iter not proper value')
-  }
-
-  const encalg = rs.aryval(pASN, 'seq.0.seq.1.seq.1.seq.0.oid')
-  const enciv = rs.aryval(pASN, 'seq.0.seq.1.seq.1.seq.1.octstr.hex')
-  const enc = rs.aryval(pASN, 'seq.1.octstr.hex')
-  if (encalg === undefined || enciv === undefined || enc === undefined) {
-    throw new Error('encalg, enciv or enc is undefined')
-  }
-
-  return {
-    salt,
-    iter,
-    prf,
-    encalg,
-    enciv,
-    enc
-  }
+  params.prf = rs.aryval(pASNKDF, `${pASNKDF.length - 1}.seq.0.oid`, 'hmacWithSHA1')
+  return params
 }
 
 function getDKFromPBES2Param (pPBES2, passcode) {
+  const isGM = pPBES2.prf === 'hmacWithSM3' || pPBES2.encalg === 'sm4-CBC'
+  if (!isGM) {
+    try {
+      return originalGetDKFromPBES2Param.call(rs.KEYUTIL, pPBES2, passcode)
+    } catch (ex) {
+      throw new Error('PBKDF2 error')
+    }
+  }
   const pHasher = {
     hmacWithSHA1: C.algo.SHA1,
     hmacWithSHA224: C.algo.SHA224,
@@ -76,7 +58,7 @@ function getDKFromPBES2Param (pPBES2, passcode) {
     const keyHex = C.enc.Hex.stringify(wKey)
     return keyHex
   } catch (ex) {
-    throw new Error('PBKDF2 error: ' + ex + ' ' + JSON.stringify(pPBES2) + ' ' + passcode)
+    throw new Error('PBKDF2 error')
   }
 }
 
@@ -88,6 +70,22 @@ function patchSM3 () {
   rs.asn1.x509.OID.name2oidList.hmacWithSM3 = '1.2.156.10197.1.401.2'
 }
 
+function sm4CipherParameters (hex, key, iv, decrypting = false) {
+  const data = util.hexToUint8Array(hex)
+  const keyBytes = util.hexToUint8Array(key)
+  const ivBytes = util.hexToUint8Array(iv)
+  if (keyBytes.length !== 16) {
+    throw new Error('invalid sm4 key size')
+  }
+  if (ivBytes.length !== 16) {
+    throw new Error('invalid sm4 iv size')
+  }
+  if (decrypting && (data.length === 0 || data.length % 16 !== 0)) {
+    throw new Error('invalid sm4 ciphertext length')
+  }
+  return { data, keyBytes, ivBytes }
+}
+
 function patchSM4 () {
   let crypto
   let useNodeSM4 = false
@@ -97,152 +95,50 @@ function patchSM4 () {
   } catch (err) {
     console.log('crypto support is disabled!')
   }
-  /**
-   * encrypt raw string by specified key and algorithm<br/>
-   * @name encrypt
-   * @memberOf KJUR.crypto.Cipher
-   * @function
-   * @param {string} s input string to encrypt
-   * @param {string} hexadecimal string of symmetric cipher key
-   * @param {string} algName short/long algorithm name for encryption/decryption (OPTION)
-   * @param {object} param parameters for synchronous cipher such as initial vector (OPTION)
-   * @return {string} hexadecimal encrypted string
-   * @since jsrsasign 6.2.0 crypto 1.1.10
-   *
-   * @description
-   * This static method encrypts raw string with specified key and algorithm.
-   * <br/>
-   * NOTE: From jsrsasign 10.9.0, asymmetric cipher ({des-EDE3,sm4-CBC,aes{128,256}}-CBC) is also supported.
-   * NOTE2: From jsrsasign 11.0.0, RSA and RSAOAEP encryption/decryption support is removed
-   * because of Marvin attack vulnerability.
-   *
-   * @example
-   * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", "aes256-CBC", { iv: "1b3c..." })
-   * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", any, { encalg: "aes128-CBC", iv: "1b3c..." })
-   * KJUR.crypto.Cipher.encrypt("12abcd...", any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41..." })
-   * KJUR.crypto.Cipher.encrypt("12abcd...", "5a7d...", "sm4-CBC", { iv: "1b3c..." })
-   * KJUR.crypto.Cipher.encrypt(any, any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41...", enc: "12abcd..." })
-   */
+  const originalEncrypt = KJUR.crypto.Cipher.encrypt
+  const originalDecrypt = KJUR.crypto.Cipher.decrypt
   KJUR.crypto.Cipher.encrypt = function (s, keyObj, algName, param) {
-    if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
-
-    if (typeof algName === 'string' && algName.endsWith('-CBC')) {
-      let hKey = keyObj
-      const hPlain = s
-      if (rs.aryval(param, 'key') !== undefined) hKey = param.key
-      // if (rs.aryval(param, 'enc') !== undefined) hEnc = param.enc
-      if (useNodeSM4) {
-        let cipherMode
-        switch (algName) {
-          case 'sm4-CBC':
-            cipherMode = 'sm4-cbc'
-            break
-          case 'des-EDE3-CBC':
-            cipherMode = 'des-ede3-cbc'
-            break
-          case 'aes128-CBC':
-            cipherMode = 'aes-128-cbc'
-            break
-          case 'aes256-CBC':
-            cipherMode = 'aes-256-cbc'
-            break
-          default:
-            throw new Error('unsupported algorithm: ' + algName)
-        }
-        const cipher = crypto.createCipheriv(cipherMode, util.hexToUint8Array(hKey), util.hexToUint8Array(param.iv))
-        return cipher.update(hPlain, 'hex', 'hex') + cipher.final('hex')
-      }
-      const wKey = C.enc.Hex.parse(hKey)
-      const wPlain = C.enc.Hex.parse(hPlain)
-      const wIV = C.enc.Hex.parse(param.iv)
-      let wEnc
-      if (algName === 'des-EDE3-CBC') {
-        wEnc = C.TripleDES.encrypt(wPlain, wKey, { iv: wIV })
-      } else if (algName === 'aes128-CBC' || algName === 'aes256-CBC') {
-        wEnc = C.AES.encrypt(wPlain, wKey, { iv: wIV })
-      } else if (algName === 'sm4-CBC') {
-        wEnc = C.SM4.encrypt(wPlain, wKey, { iv: wIV })
-      } else {
-        throw new Error('unsupported algorithm: ' + algName)
-      }
-      return wEnc + ''
-    } else {
-      throw new Error('Cipher.encrypt: unsupported key or algorithm')
+    const algorithm = rs.aryval(param, 'encalg', algName)
+    if (algorithm !== 'sm4-CBC') {
+      return originalEncrypt.call(this, s, keyObj, algName, param)
     }
+    const key = rs.aryval(param, 'key', keyObj)
+    const input = sm4CipherParameters(s, key, rs.aryval(param, 'iv'))
+    if (useNodeSM4) {
+      const cipher = crypto.createCipheriv('sm4-cbc', input.keyBytes, input.ivBytes)
+      return cipher.update(input.data, undefined, 'hex') + cipher.final('hex')
+    }
+    return C.SM4.encrypt(C.enc.Hex.parse(s), C.enc.Hex.parse(key), { iv: C.enc.Hex.parse(param.iv) }).ciphertext.toString(C.enc.Hex)
   }
 
-  /**
-   * decrypt encrypted hexadecimal string with specified key and algorithm<br/>
-   * @name decrypt
-   * @memberOf KJUR.crypto.Cipher
-   * @function
-   * @param {string} hex hexadecimal string of encrypted message
-   * @param {object} hexadecimal string of symmetric cipher key
-   * @param {string} algName short/long algorithm name for encryption/decryption (OPTION)
-   * @param {object} param parameters for synchronous cipher such as initial vector (OPTION)
-   * @return {string} decrypted raw string
-   * @since jsrsasign 6.2.0 crypto 1.1.10
-   *
-   * @description
-   * This static method decrypts encrypted hexadecimal string with specified key and algorithm.
-   * <br/>
-   * NOTE: From jsrsasign 10.9.0, asymmetric cipher ({des-EDE3,sm4-CBC,aes{128,256}}-CBC) is also supported.
-   * NOTE2: From jsrsasign 11.0.0, RSA and RSAOAEP encryption/decryption support is removed
-   * because of Marvin attack vulnerability.
-   *
-   * @example
-   * KJUR.crypto.Cipher.decrypt("12abcd...", "5a7d...", "aes256-CBC", { iv: "1b3c..." })
-   * KJUR.crypto.Cipher.decrypt("12abcd...", "5a7d...", any, { encalg: "aes128-CBC", iv: "1b3c..." })
-   * KJUR.crypto.Cipher.decrypt("12abcd...", any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41..." })
-   * KJUR.crypto.Cipher.decrypt("12abcd...", "5a7d...", "sm4-CBC", { iv: "1b3c..." })
-   * KJUR.crypto.Cipher.decrypt(any, any, any, { encalg: "des-EDE3-CBC", iv: "1b3c...", key: "3d41...", enc: "12abcd..." })
-   */
   KJUR.crypto.Cipher.decrypt = function (hex, keyObj, algName, param) {
-    if (rs.aryval(param, 'enclag') !== undefined) algName = param.encalg
-
-    if (typeof algName === 'string' && algName.endsWith('-CBC')) {
-      let hKey = keyObj
-      const hEnc = hex
-      if (rs.aryval(param, 'key') !== undefined) hKey = param.key
-      // if (rs.aryval(param, 'enc') !== undefined) hEnc = param.enc
-      if (useNodeSM4) {
-        let cipherMode
-        switch (algName) {
-          case 'sm4-CBC':
-            cipherMode = 'sm4-cbc'
-            break
-          case 'des-EDE3-CBC':
-            cipherMode = 'des-ede3-cbc'
-            break
-          case 'aes128-CBC':
-            cipherMode = 'aes-128-cbc'
-            break
-          case 'aes256-CBC':
-            cipherMode = 'aes-256-cbc'
-            break
-          default:
-            throw new Error('unsupported algorithm: ' + algName)
-        }
-        const cipher = crypto.createDecipheriv(cipherMode, util.hexToUint8Array(hKey), util.hexToUint8Array(param.iv))
-        return cipher.update(hEnc, 'hex', 'hex') + cipher.final('hex')
-      }
-      const wKey = C.enc.Hex.parse(hKey)
-      const wEnc = C.enc.Hex.parse(hEnc)
-      const wIV = C.enc.Hex.parse(param.iv)
-      let wDec
-      if (algName === 'des-EDE3-CBC') {
-        wDec = C.TripleDES.decrypt({ ciphertext: wEnc }, wKey, { iv: wIV })
-      } else if (algName === 'aes128-CBC' || algName === 'aes256-CBC') {
-        wDec = C.AES.decrypt({ ciphertext: wEnc }, wKey, { iv: wIV })
-      } else if (algName === 'sm4-CBC') {
-        wDec = C.SM4.decrypt({ ciphertext: wEnc }, wKey, { iv: wIV })
-      } else {
-        throw new Error('unsupported algorithm: ' + algName)
-      }
-      return C.enc.Hex.stringify(wDec)
-    } else {
-      throw new Error('Cipher.decrypt: unsupported key or algorithm')
+    const algorithm = rs.aryval(param, 'encalg', algName)
+    if (algorithm !== 'sm4-CBC') {
+      return originalDecrypt.call(this, hex, keyObj, algName, param)
     }
+    const key = rs.aryval(param, 'key', keyObj)
+    const input = sm4CipherParameters(hex, key, rs.aryval(param, 'iv'), true)
+    if (useNodeSM4) {
+      try {
+        const cipher = crypto.createDecipheriv('sm4-cbc', input.keyBytes, input.ivBytes)
+        return cipher.update(input.data, undefined, 'hex') + cipher.final('hex')
+      } catch (err) {
+        throw new Error('sm4: decryption error')
+      }
+    }
+    const plaintext = C.SM4.decrypt({ ciphertext: C.enc.Hex.parse(hex) }, C.enc.Hex.parse(key), { iv: C.enc.Hex.parse(param.iv), padding: C.pad.NoPadding })
+    const bytes = CEnc.Uint8Array.stringify(plaintext)
+    const paddingLength = bytes[bytes.length - 1]
+    let invalid = paddingLength < 1 || paddingLength > 16 ? 1 : 0
+    for (let offset = 1; offset <= 16; offset++) {
+      if (offset <= paddingLength) invalid |= bytes[bytes.length - offset] ^ paddingLength
+    }
+    if (invalid !== 0) {
+      throw new Error('sm4: decryption error')
+    }
+    plaintext.sigBytes -= paddingLength
+    plaintext.clamp()
+    return C.enc.Hex.stringify(plaintext)
   }
 
   rs.asn1.x509.OID.name2oidList['sm4-CBC'] = '1.2.156.10197.1.104.2'

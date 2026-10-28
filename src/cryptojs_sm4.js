@@ -14,7 +14,7 @@ const SM4 = (CAlgo.SM4 = BlockCipher.extend({
     }
     const key = this._key
     const keyWords = key.words
-    if (keyWords.length !== 4) {
+    if (key.sigBytes !== 16 || keyWords.length !== 4) {
       throw new Error('invalid sm4 key size')
     }
 

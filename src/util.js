@@ -1,5 +1,6 @@
 function integerToBytes (i, len) {
-  let bytes = i.toByteArrayUnsigned()
+  let bytes = i.toByteArray()
+  if (bytes[0] === 0) bytes = bytes.slice(1)
 
   if (len < bytes.length) {
     bytes = bytes.slice(bytes.length - len)
@@ -34,7 +35,7 @@ function toHex (bytes) {
  * @return {Uint8Array} Uint8Array containing the converted hex string.
  */
 function hexToUint8Array (hexStr) {
-  if (typeof hexStr !== 'string' || hexStr.length % 2 === 1) {
+  if (typeof hexStr !== 'string' || hexStr.length % 2 === 1 || /[^0-9a-f]/i.test(hexStr)) {
     throw new Error('Invalid hex string')
   }
   const bytes = []

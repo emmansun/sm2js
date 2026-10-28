@@ -1,6 +1,6 @@
 {
     "name": "gmsm-sm2js",
-    "version": "0.7.2",
+    "version": "0.8.0",
     "description": "Pure Javascript implementation of the SM2/SM3/SM4 functions based on jsrsasign",
     "keywords": [
         "sm2",
@@ -11,15 +11,15 @@
     ],
     "main": "index.js",
     "scripts": {
-        "test": "standard && node test/util_test.js && node test/cryptojs_sm3_test.js && node test/cryptojs_sm4_test.js && node test/sm2_test.js"
+        "test": "standard && node test/util_test.js && node test/cryptojs_sm3_test.js && node test/cryptojs_sm4_test.js && node test/jsrsasign_patch_test.js && node test/sm2_test.js"
     },
     "dependencies": {
-        "jsrsasign": "^11.1.0"
+        "jsrsasign": "^11.1.4"
     },
     "devDependencies": {
         "sjcl-with-all": "^1.0.8",
-        "standard": "^17.1.0",
-        "tape": "^5.7.4"
+        "standard": "^17.1.2",
+        "tape": "^5.10.3"
     },
     "repository": {
         "type": "git",

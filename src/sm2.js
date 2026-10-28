@@ -51,22 +51,11 @@ rs.ECDSA.getName = function (s) {
   if (s === '2a811ccf5501822d') {
     return SM2_CURVE_NAME
   }
-  return getNameFunc(s)
+  return getNameFunc.call(this, s)
 }
 
 rs.asn1.x509.OID.name2oidList[SM2_SIGN_ALG] = '1.2.156.10197.1.501'
 rs.asn1.x509.OID.name2oidList[SM2_CURVE_NAME] = '1.2.156.10197.1.301'
-
-/**
- * Returns a byte array representation of the big integer.
- *
- * This returns the absolute of the contained value in big endian
- * form. A value of zero results in an empty array.
- */
-rs.BigInteger.prototype.toByteArrayUnsigned = rs.BigInteger.prototype.toByteArrayUnsigned || function () {
-  const byteArray = this.toByteArray()
-  return byteArray[0] === 0 ? byteArray.slice(1) : byteArray
-}
 
 class EncrypterOptions {
   constructor (encodingFormat) {
@@ -85,8 +74,55 @@ const DEFAULT_SM2_ENCRYPT_OPTIONS = new EncrypterOptions(CIPHERTEXT_ENCODING_PLA
 
 const sm2 = Symbol('sm2')
 
+function createPoint (curve, x, y) {
+  const prime = curve.getQ()
+  if (x.signum() < 0 || x.compareTo(prime) >= 0 ||
+      y.signum() < 0 || y.compareTo(prime) >= 0) {
+    throw new Error('sm2: invalid elliptic curve point')
+  }
+  const point = new rs.ECPointFp(curve, curve.fromBigInteger(x), curve.fromBigInteger(y))
+  if (point.isInfinity() || !point.isOnCurve()) {
+    throw new Error('sm2: invalid elliptic curve point')
+  }
+  return point
+}
+
+function decodePoint (curve, hex) {
+  if (typeof hex !== 'string' || hex.length !== 130 || !hex.startsWith('04') || /[^0-9a-f]/i.test(hex)) {
+    throw new Error('sm2: invalid elliptic curve point encoding')
+  }
+  return createPoint(curve, new rs.BigInteger(hex.slice(2, 66), 16), new rs.BigInteger(hex.slice(66), 16))
+}
+
+function encodePoint (point) {
+  return '04' + util.toHex(util.integerToBytes(point.getX().toBigInteger(), SM2_BYTE_SIZE)) +
+    util.toHex(util.integerToBytes(point.getY().toBigInteger(), SM2_BYTE_SIZE))
+}
+
+function validatePrivateScalar (scalar, order) {
+  const maximum = order.subtract(rs.BigInteger.ONE)
+  if (!(scalar instanceof rs.BigInteger) || scalar.signum() <= 0 || scalar.compareTo(maximum) >= 0) {
+    throw new Error('sm2: invalid private key')
+  }
+  return scalar
+}
+
+function privateScalar (hex, order) {
+  if (typeof hex !== 'string' || hex.length === 0 || hex.length > 64 || /[^0-9a-f]/i.test(hex)) {
+    throw new Error('sm2: invalid private key')
+  }
+  return validatePrivateScalar(new rs.BigInteger(hex, 16), order)
+}
+
 function adaptSM2 (ecdsa) {
+  if (!(ecdsa instanceof rs.ECDSA) || ecdsa.curveName !== SM2_CURVE_NAME) {
+    throw new Error('sm2: invalid SM2 key')
+  }
   if (!ecdsa[sm2]) {
+    const key = new rs.ECDSA({ curve: SM2_CURVE_NAME })
+    if (ecdsa.prvKeyHex) key.setPrivateKeyHex(ecdsa.prvKeyHex)
+    if (ecdsa.pubKeyHex) key.setPublicKeyHex(ecdsa.pubKeyHex)
+    ecdsa = key
     ecdsa[sm2] = true
     /**
      * Encrypt data with SM2 alg
@@ -95,7 +131,7 @@ function adaptSM2 (ecdsa) {
      * @returns hex string of ciphertext
      */
     ecdsa.encrypt = function (data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
-      const Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
+      const Q = decodePoint(this.ecparams.curve, this.pubKeyHex)
       return this.encryptRaw(data, Q, opts)
     }
 
@@ -124,6 +160,9 @@ function adaptSM2 (ecdsa) {
       const n = this.ecparams.n
       const G = this.ecparams.G
       const dataLen = data.length
+      if (dataLen === 0) {
+        throw new Error('sm2: invalid plaintext length')
+      }
       const md = new MessageDigest()
       let count = 0
       if (Q.isInfinity()) {
@@ -148,7 +187,7 @@ function adaptSM2 (ecdsa) {
         md.update(Uint8Array.from(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE)))
         const c3 = md.digestRaw()
         if (opts.getEncodingFormat() === CIPHERTEXT_ENCODING_PLAIN) {
-          return util.toHex(c1.getEncoded(false)) + util.toHex(c3) + util.toHex(c2)
+          return encodePoint(c1) + util.toHex(c3) + util.toHex(c2)
         }
         const derX = new rs.asn1.DERInteger({ bigint: c1.getX().toBigInteger() })
         const derY = new rs.asn1.DERInteger({ bigint: c1.getY().toBigInteger() })
@@ -165,7 +204,7 @@ function adaptSM2 (ecdsa) {
      * @return {String} decrypted hex content
      */
     ecdsa.decrypt = function (data) {
-      const d = new rs.BigInteger(this.prvKeyHex, 16)
+      const d = privateScalar(this.prvKeyHex, this.ecparams.n)
       return this.decryptRaw(data, d)
     }
 
@@ -185,17 +224,21 @@ function adaptSM2 (ecdsa) {
      * @return {string} decrypted hex content
      */
     ecdsa.decryptRaw = function (data, d) {
+      validatePrivateScalar(d, this.ecparams.n)
       data = util.normalizeInput(data)
       const dataLen = data.length
 
       if (data[0] !== UNCOMPRESSED) {
         throw new Error('sm2: unsupport point marshal mode')
       }
-      if (dataLen < 97) {
+      if (dataLen < 98) {
         throw new Error('sm2: invalid cipher content length')
       }
-      const c1 = rs.ECPointFp.decodeFrom(this.ecparams.curve, Array.from(data.subarray(0, 65)))
+      const c1 = decodePoint(this.ecparams.curve, util.toHex(data.subarray(0, 65)))
       const s = c1.multiply(d)
+      if (s.isInfinity()) {
+        throw new Error('sm2: invalid shared point')
+      }
       const c2 = data.subarray(97)
       const c3 = data.subarray(65, 97)
       const plaintext = kdf(Uint8Array.from(util.integerToBytes(s.getX().toBigInteger(), SM2_BYTE_SIZE).concat(util.integerToBytes(s.getY().toBigInteger(), SM2_BYTE_SIZE))), dataLen - 97)
@@ -229,7 +272,7 @@ function adaptSM2 (ecdsa) {
      * @returns the hex string of the signature with asn1 format
      */
     ecdsa.signHex = function (hashHex, privHex) {
-      const d = new rs.BigInteger(privHex, 16)
+      const d = privateScalar(privHex, this.ecparams.n)
       return this._signHexInternal(hashHex, d)
     }
 
@@ -239,18 +282,13 @@ function adaptSM2 (ecdsa) {
      * @returns the hex string of the signature with asn1 format
      */
     ecdsa.signWithMessageHash = function (hashHex) {
-      if (!this._d) {
-        this._d = new rs.BigInteger(this.prvKeyHex, 16)
-      }
-      if (!this._dp1Inv) {
-        const n = this.ecparams.n
-        this._dp1Inv = this._d.add(rs.BigInteger.ONE).modInverse(n)
-      }
-      return this._signHexInternal(hashHex, this._d, this._dp1Inv)
+      const d = privateScalar(this.prvKeyHex, this.ecparams.n)
+      return this._signHexInternal(hashHex, d)
     }
 
     ecdsa._signHexInternal = function (hashHex, d, dp1Inv) {
       const n = this.ecparams.n
+      validatePrivateScalar(d, n)
       const G = this.ecparams.G
       // message hash is truncated with curve key length (FIPS 186-4 6.4)
       const e = new rs.BigInteger(hashHex.substring(0, this.ecparams.keylen / 4), 16)
@@ -278,9 +316,22 @@ function adaptSM2 (ecdsa) {
      * @param {ECPointFp} Q The ecc point of the public key
      * @returns ture or false
      */
+    const verifyWithMessageHash = ecdsa.verifyWithMessageHash
+    ecdsa.verifyWithMessageHash = function (hashHex, signatureHex) {
+      try {
+        decodePoint(this.ecparams.curve, this.pubKeyHex)
+        return verifyWithMessageHash.call(this, hashHex, signatureHex)
+      } catch (err) {
+        return false
+      }
+    }
+
     ecdsa.verifyRaw = function (e, r, s, Q) {
       const n = this.ecparams.n
       const G = this.ecparams.G
+      if (!Q || Q.isInfinity() || !Q.curve.equals(this.ecparams.curve) || !Q.isOnCurve()) {
+        return false
+      }
 
       if (r.compareTo(rs.BigInteger.ONE) < 0 ||
             r.compareTo(n) >= 0) { return false }
@@ -293,6 +344,9 @@ function adaptSM2 (ecdsa) {
         return false
       }
       const point = G.multiply(s).add(Q.multiply(t))
+      if (point.isInfinity()) {
+        return false
+      }
 
       const v = point.getX().toBigInteger().add(e).mod(n)
 
@@ -305,7 +359,7 @@ function adaptSM2 (ecdsa) {
      * @returns Uint8Array of the result
      */
     ecdsa.calculateZA = function (uid) {
-      if (!uid) {
+      if (uid === undefined || uid === null) {
         uid = DEFAULT_UID
       }
       uid = util.normalizeInput(uid)
@@ -320,18 +374,19 @@ function adaptSM2 (ecdsa) {
       md.update(SM2_CURVE_PARAMS_FOR_ZA) // a||b||gx||gy
       let Q
       if (this.pubKeyHex) {
-        Q = rs.ECPointFp.decodeFromHex(this.ecparams.curve, this.pubKeyHex)
+        Q = decodePoint(this.ecparams.curve, this.pubKeyHex)
       } else {
-        const d = new rs.BigInteger(this.prvKeyHex, 16)
+        const d = privateScalar(this.prvKeyHex, this.ecparams.n)
         const G = this.ecparams.G
         Q = G.multiply(d)
-        this.pubKeyHex = util.toHex(Q.getEncoded())
+        this.pubKeyHex = encodePoint(Q)
       }
       md.update(Uint8Array.from(util.integerToBytes(Q.getX().toBigInteger(), SM2_BYTE_SIZE))) // x
       md.update(Uint8Array.from(util.integerToBytes(Q.getY().toBigInteger(), SM2_BYTE_SIZE))) // y
       return md.digestRaw()
     }
   }
+  return ecdsa
 }
 
 /**
@@ -457,7 +512,7 @@ class Signature {
       this.algName = params.alg
       this._setAlgNames()
     }
-    if (this.mdAlgName !== 'sm3') {
+    if (this.algName !== SM2_SIGN_ALG) {
       this.fallbackSig = new rs.Signature(params)
     } else {
       this.md = new MessageDigest()
@@ -477,9 +532,16 @@ class Signature {
   }
 
   init (keyparam, pass, hextype) {
+    this.prvKey = undefined
+    this.pubKey = undefined
+    this.state = undefined
+    this.hSign = undefined
+    this.sHashHex = undefined
     if (this.fallbackSig) {
+      this.fallbackSig = new rs.Signature(this.initParams)
       return this.fallbackSig.init(keyparam, pass)
     }
+    this.md = new MessageDigest()
     let keyObj = null
     try {
       keyObj = rs.KEYUTIL.getKey(keyparam, pass, hextype)
@@ -488,13 +550,11 @@ class Signature {
     }
 
     if (keyObj.isPrivate === true) {
-      this.prvKey = keyObj
+      this.prvKey = adaptSM2(keyObj)
       this.state = 'SIGN'
-      adaptSM2(this.prvKey)
     } else if (keyObj.isPublic === true) {
-      this.pubKey = keyObj
+      this.pubKey = adaptSM2(keyObj)
       this.state = 'VERIFY'
-      adaptSM2(this.pubKey)
     } else {
       throw new Error('init failed.:' + keyObj)
     }
@@ -536,7 +596,7 @@ class Signature {
         curve: this.eccurvename,
         prv: this.ecprvhex
       })
-      adaptSM2(this.prvKey)
+      this.prvKey = adaptSM2(this.prvKey)
     }
 
     if (this.prvKey instanceof rs.ECDSA) {
@@ -579,7 +639,7 @@ class Signature {
   }
 
   sm2Sign (data, uid) {
-    if (!data) {
+    if (data === undefined || data === null) {
       throw new Error('sm2: please do not call update before sign')
     }
     if (this.fallbackSig || !(this.prvKey instanceof rs.ECDSA)) {
@@ -601,7 +661,7 @@ class Signature {
         curve: this.eccurvename,
         pub: this.ecpubhex
       })
-      adaptSM2(this.pubKey)
+      this.pubKey = adaptSM2(this.pubKey)
     }
 
     if (rs.ECDSA !== undefined &&
@@ -620,7 +680,7 @@ class Signature {
   }
 
   sm2Verify (hSigVal, data, uid) {
-    if (!data) {
+    if (data === undefined || data === null) {
       throw new Error('sm2: please do not call update before verify')
     }
     if (this.fallbackSig || !(this.pubKey instanceof rs.ECDSA)) {
@@ -648,8 +708,7 @@ function encrypt (pubkey, data, opts = DEFAULT_SM2_ENCRYPT_OPTIONS) {
   if (!(pubkey instanceof rs.ECDSA) || pubkey.curveName !== SM2_CURVE_NAME) {
     throw new Error('sm2: invalid ec public key')
   }
-  adaptSM2(pubkey)
-  return pubkey.encrypt(data, opts)
+  return adaptSM2(pubkey).encrypt(data, opts)
 }
 
 /**
@@ -665,10 +724,10 @@ function plainCiphertext2ASN1 (data) {
   if (data[0] !== UNCOMPRESSED) {
     throw new Error('sm2: unsupport point marshal mode')
   }
-  if (dataLen < 97) {
+  if (dataLen < 98) {
     throw new Error('sm2: invalid cipher content')
   }
-  const point1 = rs.ECPointFp.decodeFrom(rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve, Array.from(data.subarray(0, 65)))
+  const point1 = decodePoint(rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve, util.toHex(data.subarray(0, 65)))
   const c2 = data.subarray(97)
   const c3 = data.subarray(65, 97)
   const derX = new rs.asn1.DERInteger({ bigint: point1.getX().toBigInteger() })
@@ -713,14 +772,26 @@ function asn1Ciphertext2Plain (hexASN1Data) {
     throw new Error('sm2: invalid asn1 format ciphertext')
   }
   const aValue = _getASN1Values(hexASN1Data, aIdx, ['02', '02', '04', '04'])
+  for (const coordinate of aValue.slice(0, 2)) {
+    if (!coordinate || parseInt(coordinate.slice(0, 2), 16) >= 0x80 ||
+        (coordinate.length > 2 && coordinate.startsWith('00') && parseInt(coordinate.slice(2, 4), 16) < 0x80)) {
+      throw new Error('sm2: invalid asn1 coordinate')
+    }
+  }
   const curve = rs.crypto.ECParameterDB.getByName(SM2_CURVE_NAME).curve
   const x = new rs.BigInteger(aValue[0], 16)
   const y = new rs.BigInteger(aValue[1], 16)
-  const point = new rs.ECPointFp(curve, curve.fromBigInteger(x), curve.fromBigInteger(y))
+  const point = createPoint(curve, x, y)
   const c3 = aValue[2]
   const c2 = aValue[3]
+  if (c3.length !== SM3_SIZE * 2) {
+    throw new Error('sm2: invalid cipher hash length')
+  }
+  if (c2.length === 0) {
+    throw new Error('sm2: invalid cipher content length')
+  }
 
-  return util.toHex(point.getEncoded(false)) + c3 + c2
+  return encodePoint(point) + c3 + c2
 }
 
 /**
@@ -752,8 +823,7 @@ function decrypt (prvKey, data) {
   if (!(prvKey instanceof rs.ECDSA) || prvKey.curveName !== SM2_CURVE_NAME) {
     throw new Error('sm2: invalid ec public key')
   }
-  adaptSM2(prvKey)
-  return prvKey.decrypt(data)
+  return adaptSM2(prvKey).decrypt(data)
 }
 
 /**
@@ -764,7 +834,7 @@ function decrypt (prvKey, data) {
  * @returns hex plaintext
  */
 function decryptHex (prvKey, data) {
-  if (typeof data !== 'string' || data.length < 98 * 2) {
+  if (typeof data !== 'string' || data.length < 2 || data.length % 2 !== 0 || /[^0-9a-f]/i.test(data)) {
     throw new Error('sm2: invalid chiphertext length')
   }
   const tag = data.substring(0, 2)
@@ -773,6 +843,8 @@ function decryptHex (prvKey, data) {
   }
   if (tag === '30') {
     data = asn1Ciphertext2Plain(data)
+  } else if (data.length < 98 * 2) {
+    throw new Error('sm2: invalid chiphertext length')
   }
   return decrypt(prvKey, util.hexToUint8Array(data))
 }
@@ -789,7 +861,11 @@ function createSM2Signature () {
   return new Signature({ alg: SM2_SIGN_ALG })
 }
 
+const originalNewCSRPEM = rs.asn1.csr.CSRUtil.newCSRPEM
 rs.asn1.csr.CSRUtil.newCSRPEM = function (param) {
+  if (param.sigalg !== SM2_SIGN_ALG) {
+    return originalNewCSRPEM.call(this, param)
+  }
   const csr = new rs.asn1.csr.CertificationRequest(param)
   if (param.sigalg === SM2_SIGN_ALG) {
     csr.sign = function () {
